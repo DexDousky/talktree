@@ -5,3 +5,14 @@ whatsapp + discord praticamente
 *"servidores/grupos"
 * log de algo acontecendo no momento, como se fosse uma torre de comunicação.
 shimishimieshimie shimiah, drank swalalala.
+
+Explicaçao melhor, o plano é fazer uma mistura entre aplicaçoes de mensagens na qual ja estamo
+desenhando as telas.
+
+Foco: Brigada de Incêndio Florestal
+Brigadistas em pontos diferentes da mata se comunicam em tempo real para coordenar o combate 
+ao fogo e pedir reforços.
+
+O plano é ser inspirado no jogo Firewatch e Fears to Fathom, onde um vigia florestal depende 
+de um rádio e um computador para comunicaçao com outras torres.
+
