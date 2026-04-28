@@ -206,17 +206,18 @@ public class Cliente extends JFrame {
             int tentativas = 0;
             while (tentativas < 5) {
                 try {
-                    Socket s = new Socket("localhost", 12345);
-                    out = new PrintWriter(s.getOutputStream(), true);
-                    
-                    BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
-                    String line;
-                    while ((line = in.readLine()) != null) {
-                        String[] partes = line.split("\\|", 2);
-                        if (partes.length == 2) {
-                            adicionarMensagem(partes[0], partes[1]);
-                        } else {
-                            adicionarMensagem("SISTEMA", line);
+                    try (Socket s = new Socket("localhost", 12345)) {
+                        out = new PrintWriter(s.getOutputStream(), true);
+                        
+                        BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                        String line;
+                        while ((line = in.readLine()) != null) {
+                            String[] partes = line.split("\\|", 2);
+                            if (partes.length == 2) {
+                                adicionarMensagem(partes[0], partes[1]);
+                            } else {
+                                adicionarMensagem("SISTEMA", line);
+                            }
                         }
                     }
                     break; 
