@@ -4,29 +4,22 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- * Servidor Central da Brigada de Incêndio
- * Esse aqui recebe as mensagens das torres e espalha pra todo mundo.
- */
 public class Servidor {
-    // Lista de quem tá conectado pra gente conseguir mandar mensagem pra geral
-    private static Set<PrintWriter> escritores = new HashSet<>();
+    // Mapa que associa cada PrintWriter ao nome da torre
+    private static Map<PrintWriter, String> clientes = new HashMap<>();
 
     public static void main(String[] args) {
-        // Força o console a usar UTF-8 pra não quebrar os acentos aqui
         try {
             System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
         } catch (Exception e) {}
 
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
-        
-        // Porta 12345 pq sim
+
         try (ServerSocket servidorSocket = new ServerSocket(12345)) {
             while (true) {
-                // Fica esperando alguém conectar (o rádio de alguma torre)
                 new ManipuladorCliente(servidorSocket.accept()).start();
             }
         } catch (IOException e) {
@@ -34,11 +27,11 @@ public class Servidor {
         }
     }
 
-    // Classe interna pra cuidar de cada brigadista que conecta
     private static class ManipuladorCliente extends Thread {
         private Socket socket;
         private PrintWriter out;
         private BufferedReader in;
+        private String nomeTorre;
 
         public ManipuladorCliente(Socket socket) {
             this.socket = socket;
@@ -49,28 +42,52 @@ public class Servidor {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
-                // Adiciona esse novo rádio na nossa lista de transmissão
-                synchronized (escritores) {
-                    escritores.add(out);
+                // Lê o login no formato original: LOGIN|nome
+                String login = in.readLine();
+                if (login == null || !login.startsWith("LOGIN|")) {
+                    socket.close();
+                    return;
+                }
+                nomeTorre = login.substring(6);
+
+                synchronized (clientes) {
+                    // Envia a lista completa de torres para o recém-chegado
+                    StringBuilder lista = new StringBuilder("LIST|");
+                    for (String nome : clientes.values()) {
+                        lista.append(nome).append(",");
+                    }
+                    out.println(lista.toString());
+
+                    // Avisa os demais que uma nova torre entrou
+                    for (PrintWriter escritor : clientes.keySet()) {
+                        escritor.println("JOIN|" + nomeTorre);
+                    }
+
+                    // Adiciona o novo cliente
+                    clientes.put(out, nomeTorre);
                 }
 
+                // Loop principal de mensagens
                 String mensagem;
                 while ((mensagem = in.readLine()) != null) {
-                    System.out.println("Mensagem recebida: " + mensagem);
-                    // Manda pra todo mundo que tá online
-                    synchronized (escritores) {
-                        for (PrintWriter escritor : escritores) {
-                            escritor.println(mensagem);
+                    // O cliente envia no formato original: nome|texto
+                    System.out.println("[" + nomeTorre + "]: " + mensagem);
+                    synchronized (clientes) {
+                        for (PrintWriter escritor : clientes.keySet()) {
+                            escritor.println(mensagem); // ecoa exatamente como recebeu
                         }
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Alguém desconectou.");
+                System.out.println("Conexão perdida com " + nomeTorre);
             } finally {
-                // Se o cara saiu, a gente limpa ele da lista
-                if (out != null) {
-                    synchronized (escritores) {
-                        escritores.remove(out);
+                // Remove a torre ao desconectar e avisa os outros
+                if (nomeTorre != null) {
+                    synchronized (clientes) {
+                        clientes.remove(out);
+                        for (PrintWriter escritor : clientes.keySet()) {
+                            escritor.println("LEAVE|" + nomeTorre);
+                        }
                     }
                 }
                 try { socket.close(); } catch (IOException e) {}
