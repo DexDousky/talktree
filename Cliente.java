@@ -1,154 +1,238 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
+import javax.swing.border.EmptyBorder;
 
-/**
- Rádio do Brigadista (Cliente)
- Tentei deixar com a vibe Firewatch/Fears to Fathom.
- */
+
 public class Cliente extends JFrame {
-    private JTextArea areaChat;
+    private JTextPane areaChat; 
     private JTextField campoMensagem;
     private DefaultListModel<String> modeloUsuarios;
-    private JList<String> listaUsuarios;
     private PrintWriter out;
     private String nomeUsuario;
+    private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
 
     public Cliente() {
-        // Pede o nome antes de abrir tudo
-        nomeUsuario = JOptionPane.showInputDialog(this, "Identifique sua Torre (Nome):", "Login de Brigadista", JOptionPane.PLAIN_MESSAGE);
-        if (nomeUsuario == null || nomeUsuario.trim().isEmpty()) nomeUsuario = "Vigia Desconhecido";
+        nomeUsuario = mostrarLogin();
 
-        // Configuração da Janela
-        setTitle("TalkTree - Sala de Operações (" + nomeUsuario + ")");
-        setSize(800, 500);
+        setTitle("TALKTREE // OPERACOES FLORESTAIS");
+        setSize(1000, 700);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        getContentPane().setBackground(new Color(20, 20, 25)); // Cor de fundo bem escura
-        setLayout(new BorderLayout(5, 5));
+        getContentPane().setBackground(new Color(18, 18, 24));
+        setLayout(new BorderLayout(0, 0));
 
-        // --- SIDEBAR (USUÁRIOS ONLINE) ---
-        JPanel painelEsquerda = new JPanel(new BorderLayout());
-        painelEsquerda.setPreferredSize(new Dimension(180, 0));
-        painelEsquerda.setBackground(new Color(30, 30, 35));
-        
-        JLabel labelUsuarios = new JLabel(" TORRES ONLINE");
-        labelUsuarios.setForeground(new Color(255, 100, 0)); // Laranja Firewatch
-        labelUsuarios.setBorder(BorderFactory.createEmptyBorder(10, 5, 10, 5));
-        painelEsquerda.add(labelUsuarios, BorderLayout.NORTH);
+        JPanel sidebar = new JPanel(new BorderLayout());
+        sidebar.setPreferredSize(new Dimension(260, 0));
+        sidebar.setBackground(new Color(24, 24, 32));
+        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(40, 40, 50)));
+
+        JLabel tituloSidebar = new JLabel("  SINAIS DE RADIO");
+        tituloSidebar.setFont(new Font("Monospaced", Font.BOLD, 15));
+        tituloSidebar.setForeground(new Color(255, 110, 0));
+        tituloSidebar.setPreferredSize(new Dimension(0, 60));
+        sidebar.add(tituloSidebar, BorderLayout.NORTH);
 
         modeloUsuarios = new DefaultListModel<>();
-        modeloUsuarios.addElement("\uD83D\uDFE2 " + nomeUsuario + " (Voc\u00EA)");
-        listaUsuarios = new JList<>(modeloUsuarios);
-        listaUsuarios.setBackground(new Color(30, 30, 35));
-        listaUsuarios.setForeground(Color.LIGHT_GRAY);
-        painelEsquerda.add(new JScrollPane(listaUsuarios), BorderLayout.CENTER);
+        modeloUsuarios.addElement("  o " + nomeUsuario + " [VOCE]");
+        JList<String> lista = new JList<>(modeloUsuarios);
+        lista.setBackground(new Color(24, 24, 32));
+        lista.setForeground(new Color(160, 160, 170));
+        lista.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        lista.setFixedCellHeight(45);
+        sidebar.add(new JScrollPane(lista), BorderLayout.CENTER);
+        add(sidebar, BorderLayout.WEST);
 
-        add(painelEsquerda, BorderLayout.WEST);
+        JPanel painelChat = new JPanel(new BorderLayout());
+        painelChat.setBackground(new Color(18, 18, 24));
 
-        // --- ÁREA CENTRAL (CHAT) ---
-        JPanel painelCentro = new JPanel(new BorderLayout());
-        painelCentro.setBackground(new Color(20, 20, 25));
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 15));
+        header.setBackground(new Color(22, 22, 30));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(40, 40, 50)));
+        JLabel statusCanal = new JLabel("SINTONIZADO: CANAL_7_NORTE");
+        statusCanal.setFont(new Font("Monospaced", Font.BOLD, 13));
+        statusCanal.setForeground(new Color(0, 255, 150)); 
+        header.add(statusCanal);
+        painelChat.add(header, BorderLayout.NORTH);
 
-        areaChat = new JTextArea();
+        areaChat = new JTextPane();
         areaChat.setEditable(false);
-        areaChat.setBackground(new Color(15, 15, 20));
-        areaChat.setForeground(new Color(220, 220, 220));
-        areaChat.setFont(new Font("Monospaced", Font.PLAIN, 14));
-        areaChat.setMargin(new Insets(10, 10, 10, 10));
-        
-        JScrollPane scrollChat = new JScrollPane(areaChat);
-        scrollChat.setBorder(BorderFactory.createLineBorder(new Color(50, 50, 60)));
-        painelCentro.add(scrollChat, BorderLayout.CENTER);
+        areaChat.setContentType("text/html");
+        areaChat.setBackground(new Color(18, 18, 24));
+        areaChat.setText("<html><body style='font-family:Monospaced; color:#aaa; font-size:12px;'><div style='color:#555;'>--- INICIO DA TRANSMISSAO ---</div></body></html>");
 
-        // --- CAMPO DE ENVIAR ---
-        JPanel painelSul = new JPanel(new BorderLayout(5, 0));
-        painelSul.setBackground(new Color(20, 20, 25));
-        painelSul.setBorder(BorderFactory.createEmptyBorder(10, 5, 10, 5));
+        JScrollPane scroll = new JScrollPane(areaChat);
+        scroll.setBorder(null);
+        painelChat.add(scroll, BorderLayout.CENTER);
+
+        JPanel rodape = new JPanel(new BorderLayout(15, 0));
+        rodape.setBackground(new Color(22, 22, 30));
+        rodape.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         campoMensagem = new JTextField();
-        campoMensagem.setBackground(new Color(40, 40, 45));
+        campoMensagem.setBackground(new Color(30, 30, 40));
         campoMensagem.setForeground(Color.WHITE);
-        campoMensagem.setCaretColor(Color.WHITE);
+        campoMensagem.setCaretColor(new Color(255, 110, 0));
+        campoMensagem.setFont(new Font("Monospaced", Font.PLAIN, 15));
         campoMensagem.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(100, 100, 110)),
-            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+            BorderFactory.createLineBorder(new Color(60, 60, 75)),
+            new EmptyBorder(8, 15, 8, 15)
         ));
 
-        JButton botaoEnviar = new JButton("TRANSMITIR");
-        botaoEnviar.setBackground(new Color(255, 100, 0));
-        botaoEnviar.setForeground(Color.BLACK);
-        botaoEnviar.setFocusPainted(false);
-        botaoEnviar.setFont(new Font("Arial", Font.BOLD, 12));
+        JButton btnEnviar = new JButton("TRANSMITIR");
+        btnEnviar.setBackground(new Color(255, 110, 0));
+        btnEnviar.setForeground(Color.BLACK);
+        btnEnviar.setFont(new Font("Monospaced", Font.BOLD, 13));
+        btnEnviar.setFocusPainted(false);
+        btnEnviar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnEnviar.setBorder(new EmptyBorder(0, 30, 0, 30));
 
-        painelSul.add(campoMensagem, BorderLayout.CENTER);
-        painelSul.add(botaoEnviar, BorderLayout.EAST);
-        painelCentro.add(painelSul, BorderLayout.SOUTH);
+        rodape.add(campoMensagem, BorderLayout.CENTER);
+        rodape.add(btnEnviar, BorderLayout.EAST);
+        painelChat.add(rodape, BorderLayout.SOUTH);
+        add(painelChat, BorderLayout.CENTER);
 
-        add(painelCentro, BorderLayout.CENTER);
-
-        // Lógica de envio
-        ActionListener enviarAcao = e -> {
-            String texto = campoMensagem.getText();
-            if (!texto.isEmpty()) {
-                out.println("[" + nomeUsuario + "]: " + texto);
-                campoMensagem.setText("");
-            }
-        };
-        botaoEnviar.addActionListener(enviarAcao);
-        campoMensagem.addActionListener(enviarAcao);
+        ActionListener acaoEnvio = e -> enviarMensagem();
+        btnEnviar.addActionListener(acaoEnvio);
+        campoMensagem.addActionListener(acaoEnvio);
 
         setVisible(true);
-        conectarServidor();
+        conectar();
     }
 
-    private void conectarServidor() {
-        try {
-            Socket socket = new Socket("localhost", 12345);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-            // Thread pra ficar ouvindo o que chega do servidor sem travar a tela
-            new Thread(() -> {
-                try {
-                    String msg;
-                    while ((msg = in.readLine()) != null) {
-                        areaChat.append(msg + "\n");
-                        areaChat.setCaretPosition(areaChat.getDocument().getLength());
-                    }
-                } catch (IOException e) {
-                    areaChat.append("CONEXÃO PERDIDA COM A CENTRAL\n");
-                }
-            }).start();
-
-            areaChat.append(">>> RÁDIO SINTONIZADO NA CENTRAL <<<\n");
-        } catch (IOException e) {
-            areaChat.append("ERRO AO CONECTAR NA CENTRAL\n");
+    private void enviarMensagem() {
+        String texto = campoMensagem.getText().trim();
+        if (!texto.isEmpty()) {
+            if (out != null) {
+                out.println(nomeUsuario + "|" + texto);
+            }
+            campoMensagem.setText("");
         }
     }
 
+    private String mostrarLogin() {
+        JDialog login = new JDialog((Frame)null, "TALKTREE // AUTENTICACAO", true);
+        login.setSize(400, 250);
+        login.setLocationRelativeTo(null);
+        login.getContentPane().setBackground(new Color(24, 24, 32));
+        login.setLayout(new GridBagLayout());
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.gridx = 0;
+        
+        JLabel lbl = new JLabel("IDENTIFIQUE SUA TORRE:");
+        lbl.setForeground(new Color(255, 110, 0));
+        lbl.setFont(new Font("Monospaced", Font.BOLD, 14));
+        gbc.gridy = 0;
+        login.add(lbl, gbc);
+        
+        JTextField txt = new JTextField(15);
+        txt.setBackground(new Color(30, 30, 40));
+        txt.setForeground(Color.WHITE);
+        txt.setCaretColor(new Color(255, 110, 0));
+        txt.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 75)));
+        txt.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        gbc.gridy = 1;
+        login.add(txt, gbc);
+        
+        JButton btn = new JButton("ENTRAR NA FREQUENCIA");
+        btn.setBackground(new Color(255, 110, 0));
+        btn.setForeground(Color.BLACK);
+        btn.setFocusPainted(false);
+        btn.setFont(new Font("Monospaced", Font.BOLD, 13));
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        gbc.gridy = 2;
+        login.add(btn, gbc);
+        
+        final String[] nome = {null};
+        btn.addActionListener(e -> {
+            nome[0] = txt.getText().trim();
+            login.dispose();
+        });
+        
+        txt.addActionListener(e -> btn.doClick());
+        
+        login.setVisible(true);
+        return (nome[0] == null || nome[0].isEmpty()) ? "Vigia_" + (int)(Math.random()*100) : nome[0];
+    }
+
+    private void adicionarMensagem(String nome, String msg) {
+        String hora = formatter.format(new Date());
+        String corNome = nome.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
+        String htmlMsg = String.format("<div style='margin-bottom:8px;'><span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span></div>", hora, corNome, nome, msg);
+        SwingUtilities.invokeLater(() -> {
+            try {
+                String content = areaChat.getText();
+                int bodyEnd = content.lastIndexOf("</body>");
+                if (bodyEnd != -1) {
+                    areaChat.setText(content.substring(0, bodyEnd) + htmlMsg + "</body></html>");
+                } else {
+                    areaChat.setText("<html><body>" + htmlMsg + "</body></html>");
+                }
+                areaChat.setCaretPosition(areaChat.getDocument().getLength());
+            } catch (Exception ex) {}
+        });
+    }
+
+    private void conectar() {
+        new Thread(() -> {
+            int tentativas = 0;
+            while (tentativas < 5) {
+                try {
+                    Socket s = new Socket("localhost", 12345);
+                    out = new PrintWriter(s.getOutputStream(), true);
+                    
+                    BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        String[] partes = line.split("\\|", 2);
+                        if (partes.length == 2) {
+                            adicionarMensagem(partes[0], partes[1]);
+                        } else {
+                            adicionarMensagem("SISTEMA", line);
+                        }
+                    }
+                    break; 
+                } catch (Exception ex) {
+                    tentativas++;
+                    try { Thread.sleep(500); } catch (Exception e) {}
+                }
+            }
+            if (out == null) {
+                adicionarMensagem("ERRO", "Central offline após várias tentativas.");
+            }
+        }).start();
+    }
+
     public static void main(String[] args) {
-        // Garante que a interface rode bonitinho
+        System.setProperty("file.encoding", "UTF-8");
         SwingUtilities.invokeLater(() -> new Cliente());
     }
 }

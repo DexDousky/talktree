@@ -8,7 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Servidor Central da Brigada de Incêndio (TalkTree)
+ * Servidor Central da Brigada de Incêndio
  * Esse aqui recebe as mensagens das torres e espalha pra todo mundo.
  */
 public class Servidor {
@@ -16,9 +16,14 @@ public class Servidor {
     private static Set<PrintWriter> escritores = new HashSet<>();
 
     public static void main(String[] args) {
+        // Força o console a usar UTF-8 pra não quebrar os acentos aqui
+        try {
+            System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
+        } catch (Exception e) {}
+
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
         
-        // Porta 12345 pq sim, é fácil de lembrar
+        // Porta 12345 pq sim
         try (ServerSocket servidorSocket = new ServerSocket(12345)) {
             while (true) {
                 // Fica esperando alguém conectar (o rádio de alguma torre)
