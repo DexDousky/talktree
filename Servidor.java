@@ -7,19 +7,29 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * SERVIDOR DA CENTRAL DE BRIGADA
+ * Basicamente o cerebro que gerencia as torres na mata.
+ */
 public class Servidor {
-    // Mapa que associa cada PrintWriter ao nome da torre
+    // Mapa que associa cada radio ao nome da torre
+    // Pra gente saber quem é quem na frequencia
     private static Map<PrintWriter, String> clientes = new HashMap<>();
 
     public static void main(String[] args) {
+        // Forcar UTF-8 pq o Windows e chato com acentos
         try {
             System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            
+        }
 
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
 
+        // Porta 12345 pq e facil de decorar
         try (ServerSocket servidorSocket = new ServerSocket(12345)) {
             while (true) {
+                // Fica esperando algum brigadista sintonizar
                 new ManipuladorCliente(servidorSocket.accept()).start();
             }
         } catch (IOException e) {
@@ -27,6 +37,7 @@ public class Servidor {
         }
     }
 
+    // Essa classe cuida de cada radio individualmente pra nao travar tudo
     private static class ManipuladorCliente extends Thread {
         private Socket socket;
         private PrintWriter out;
@@ -42,7 +53,7 @@ public class Servidor {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
-                // Lê o login no formato original: LOGIN|nome
+                // O radio tem que mandar LOGIN/nome logo que liga
                 String login = in.readLine();
                 if (login == null || !login.startsWith("LOGIN|")) {
                     socket.close();
@@ -51,37 +62,37 @@ public class Servidor {
                 nomeTorre = login.substring(6);
 
                 synchronized (clientes) {
-                    // Envia a lista completa de torres para o recém-chegado
+                    // Manda a lista de quem ja ta na mata pro novato
                     StringBuilder lista = new StringBuilder("LIST|");
                     for (String nome : clientes.values()) {
                         lista.append(nome).append(",");
                     }
                     out.println(lista.toString());
 
-                    // Avisa os demais que uma nova torre entrou
+                    // Avisa a geral que chegou mais outro radio na rede
                     for (PrintWriter escritor : clientes.keySet()) {
                         escritor.println("JOIN|" + nomeTorre);
                     }
 
-                    // Adiciona o novo cliente
+                    // Guarda o radio no nosso mapa
                     clientes.put(out, nomeTorre);
                 }
 
-                // Loop principal de mensagens
+                // Loop principal pra ficar ouvindo as mensagens
                 String mensagem;
                 while ((mensagem = in.readLine()) != null) {
-                    // O cliente envia no formato original: nome|texto
+                    // O radio envia no formato: nome|texto
                     System.out.println("[" + nomeTorre + "]: " + mensagem);
                     synchronized (clientes) {
                         for (PrintWriter escritor : clientes.keySet()) {
-                            escritor.println(mensagem); // ecoa exatamente como recebeu
+                            escritor.println(mensagem); // Repassa pra todo mundo
                         }
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Conexão perdida com " + nomeTorre);
+                System.out.println("Conex�o perdida com " + nomeTorre);
             } finally {
-                // Remove a torre ao desconectar e avisa os outros
+                // Se o brigadista sumir, limpa ele da lista e avisa os outros
                 if (nomeTorre != null) {
                     synchronized (clientes) {
                         clientes.remove(out);

@@ -1,0 +1,90 @@
+/* 
+ OK, aquilo antes tava feio demais entao tivemos que ir pro lado CSS mesmo, me recuso apresentar aquilo antes
+*/
+
+.root {
+    -fx-background-color: #121218; /* Fundo escuro 
+}
+
+/* Sidebar lateral */
+.sidebar {
+    -fx-background-color: #181820;
+    -fx-border-color: #282832;
+    -fx-border-width: 0 1 0 0;
+}
+
+.titulo-sidebar {
+    -fx-text-fill: #FF6E00; /* Laranja */
+    -fx-font-family: "Monospaced";
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+}
+
+/* Lista de Usuarios */
+.list-view {
+    -fx-background-color: transparent;
+}
+
+.list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #A0A0AA;
+    -fx-font-family: "Monospaced";
+    -fx-padding: 10px;
+}
+
+.list-cell:filled:selected {
+    -fx-background-color: #282835;
+    -fx-text-fill: white;
+}
+
+/* Area do Chat */
+.chat-header {
+    -fx-background-color: #16161E;
+    -fx-border-color: #282832;
+    -fx-border-width: 0 0 1 0;
+}
+
+.chat-msg-area {
+    -fx-background-color: #121218;
+    -fx-text-fill: #DCDCDC;
+}
+
+/* role de descer tela estilizada (pra nao ficar aquele cinza de antes */
+    -fx-background-color: transparent;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Rodape e Campo de Texto */
+.rodape {
+    -fx-background-color: #16161E;
+    -fx-padding: 20px;
+}
+
+.campo-mensagem {
+    -fx-background-color: #1E1E28;
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #555;
+    -fx-highlight-fill: #FF6E00;
+    -fx-border-color: #3C3C4B;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-font-family: "Monospaced";
+    -fx-font-size: 14px;
+}
+
+/* Botao de Transmitir */
+.botao-transmitir {
+    -fx-background-color: #FF6E00;
+    -fx-text-fill: black;
+    -fx-font-weight: bold;
+    -fx-font-family: "Monospaced";
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.botao-transmitir:hover {
+    -fx-background-color: #FF8C00; /* Brilha mais no hover */
+}
