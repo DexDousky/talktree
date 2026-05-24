@@ -9,36 +9,39 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
+import javafx.stage.FileChooser;
 
 import java.io.*;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 import java.util.Date;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 
-/**
- * TALKTREE - Radio de Brigada Florestal (Versao JavaFX)
- * Tivemos que usar JavaFX pq o Swing tava feio demais pqp
- */
 public class Cliente extends Application {
 
-    private WebView areaChat;     
-    private TextField campoMensagem; 
-    private ListView<String> listaTorres; 
+    private WebView areaChat;
+    private TextField campoMensagem;
+    private ListView<String> listaTorres;
     private ObservableList<String> torresOnline = FXCollections.observableArrayList();
-    
+
     private PrintWriter out;
     private String nomeUsuario;
-    // Comeca o HTML do chat com um estilo escuro
-    private String historicoHtml = "<html><body style='background-color:#121218; color:#DCDCDC; font-family:Monospaced; font-size:13px; margin:15px;'>";
+    private StringBuilder historicoHtml = new StringBuilder();
     private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
+
+    // limite de histórico (últimas 200 mensagens)
+    private static final int MAX_HISTORICO = 200;
+    private int contadorMensagens = 0;
 
     @Override
     public void start(Stage palcoPrincipal) {
-        // Pede o nome antes de abrir a central
         this.nomeUsuario = mostrarTelaLogin();
         if (nomeUsuario == null) System.exit(0);
 
-        // SIDEBAR
+        // --- SIDEBAR ---
         VBox sidebar = new VBox(20);
         sidebar.getStyleClass().add("sidebar");
         sidebar.setPrefWidth(260);
@@ -51,7 +54,7 @@ public class Cliente extends Application {
         VBox.setVgrow(listaTorres, Priority.ALWAYS);
         sidebar.getChildren().addAll(tituloSidebar, listaTorres);
 
-        // --- MONTAGEM DO CHAT ---
+        // --- CHAT ---
         VBox painelChat = new VBox();
         HBox header = new HBox();
         header.getStyleClass().add("chat-header");
@@ -60,27 +63,41 @@ public class Cliente extends Application {
         labelCanal.setStyle("-fx-text-fill: #00FF96; -fx-font-family: 'Monospaced'; -fx-font-weight: bold;");
         header.getChildren().add(labelCanal);
 
-        areaChat = new WebView(); // Usando webview pra aceitar as cores do HTML
+        areaChat = new WebView();
         VBox.setVgrow(areaChat, Priority.ALWAYS);
-        areaChat.getEngine().loadContent(historicoHtml + "<div style='color:#555;'>--- INICIO DA TRANSMISSAO ---</div></body></html>");
+        iniciarHistorico();
 
-        // --- RODAPE E INPUT ---
-        HBox rodape = new HBox(15);
+        // --- RODAPE COM INPUT, EMOTES E ANEXO ---
+        HBox rodape = new HBox(10);
         rodape.getStyleClass().add("rodape");
         rodape.setAlignment(Pos.CENTER);
         rodape.setPrefHeight(90);
 
         campoMensagem = new TextField();
-        campoMensagem.setPromptText("Transmita sua mensagem...");
+        campoMensagem.setPromptText("Digite sua mensagem...");
         campoMensagem.getStyleClass().add("campo-mensagem");
         HBox.setHgrow(campoMensagem, Priority.ALWAYS);
+
+        // Botão de emojis
+        Button btnEmoji = new Button("😀");
+        btnEmoji.getStyleClass().add("botao-emoji");
+        btnEmoji.setPrefWidth(50);
+        btnEmoji.setPrefHeight(45);
+        btnEmoji.setOnAction(e -> mostrarMenuEmoji());
+
+        // Botão de anexo
+        Button btnAnexo = new Button("📎");
+        btnAnexo.getStyleClass().add("botao-anexo");
+        btnAnexo.setPrefWidth(50);
+        btnAnexo.setPrefHeight(45);
+        btnAnexo.setOnAction(e -> enviarAnexo());
 
         Button btnTransmitir = new Button("TRANSMITIR");
         btnTransmitir.getStyleClass().add("botao-transmitir");
         btnTransmitir.setPrefHeight(45);
-        btnTransmitir.setPrefWidth(150);
+        btnTransmitir.setPrefWidth(130);
 
-        rodape.getChildren().addAll(campoMensagem, btnTransmitir);
+        rodape.getChildren().addAll(campoMensagem, btnEmoji, btnAnexo, btnTransmitir);
         painelChat.getChildren().addAll(header, areaChat, rodape);
 
         BorderPane raiz = new BorderPane();
@@ -89,10 +106,9 @@ public class Cliente extends Application {
 
         Scene cena = new Scene(raiz, 1100, 750);
         try {
-            // Tenta puxar o CSS pra nao ficar o visual padrao do java
             cena.getStylesheets().add(getClass().getResource("estilo.css").toExternalForm());
         } catch (Exception e) {
-            System.out.println("Deu erro ao carregar o CSS, mas segue o baile");
+            System.out.println("CSS não encontrado, usando estilo padrão.");
         }
 
         palcoPrincipal.setTitle("TALKTREE // OPERACOES - " + nomeUsuario);
@@ -101,48 +117,175 @@ public class Cliente extends Application {
 
         conectarServidor();
 
-        // Faz o botao e o Enter funcionarem
+        // Eventos de envio
         btnTransmitir.setOnAction(e -> enviarMensagem());
         campoMensagem.setOnAction(e -> enviarMensagem());
     }
 
-    private String mostrarTelaLogin() {
-        TextInputDialog login = new TextInputDialog();
-        login.setTitle("AUTENTICACAO");
-        login.setHeaderText("CENTRAL DE COMANDO TALKTREE");
-        login.setContentText("IDENTIFIQUE SUA TORRE:");
-        return login.showAndWait().orElse(null);
+    // ========== LÓGICA DO HISTÓRICO (HTML) ==========
+    private void iniciarHistorico() {
+        historicoHtml = new StringBuilder();
+        historicoHtml.append("<html><body style='background-color:#121218; color:#DCDCDC; font-family:Monospaced; font-size:13px; margin:15px;'>");
+        historicoHtml.append("<div style='color:#555;'>--- INICIO DA TRANSMISSAO ---</div>");
+        contadorMensagens = 0;
+        atualizarWebView();
     }
 
-    private void enviarMensagem() {
-        String msg = campoMensagem.getText().trim();
-        if (!msg.isEmpty() && out != null) {
-            // Manda pro servidor no formato nome/texto
-            out.println(nomeUsuario + "|" + msg);
-            campoMensagem.clear();
+    private void adicionarLinhaHtml(String linhaHtml) {
+        if (contadorMensagens >= MAX_HISTORICO) {
+            String atual = historicoHtml.toString();
+            int primeiroDiv = atual.indexOf("<div");
+            if (primeiroDiv != -1) {
+                int fimPrimeiro = atual.indexOf("</div>", primeiroDiv);
+                if (fimPrimeiro != -1) {
+                    historicoHtml = new StringBuilder(atual.substring(0, primeiroDiv) + atual.substring(fimPrimeiro + 6));
+                    contadorMensagens--;
+                }
+            }
         }
+        historicoHtml.append(linhaHtml);
+        contadorMensagens++;
+        atualizarWebView();
     }
 
+    private void atualizarWebView() {
+        Platform.runLater(() -> {
+            String completo = historicoHtml.toString() + "</body></html>";
+            areaChat.getEngine().loadContent(completo);
+        });
+    }
+
+    // ========== MENSAGENS DE TEXTO E ARQUIVO ==========
     private void adicionarMensagemAoChat(String nome, String texto) {
         String hora = formatter.format(new Date());
         String corNome = nome.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
-        
-        // Criar a linha em HTML pra ficar melhor que aquela bagaça de antes
-        String novaLinha = String.format("<div style='margin-bottom:10px;'><span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span></div>", hora, corNome, nome, texto);
-        historicoHtml += novaLinha;
-        
-        // WebView rodando na thread da interface
-        Platform.runLater(() -> areaChat.getEngine().loadContent(historicoHtml + "</body></html>"));
+
+        // Verifica se é uma mensagem de arquivo (FILE|nome|tipo|base64)
+        if (texto.startsWith("FILE|")) {
+            String[] partes = texto.split("\\|", 4);
+            if (partes.length == 4 && partes[0].equals("FILE")) {
+                String nomeArquivo = partes[1];
+                String tipo = partes[2];   // "image" ou "video"
+                String base64Data = partes[3];
+                String htmlAnexo = gerarHtmlAnexo(nome, nomeArquivo, tipo, base64Data);
+                adicionarLinhaHtml(htmlAnexo);
+                return;
+            }
+        }
+
+        // Mensagem de texto normal
+        String linhaHtml = String.format(
+            "<div style='margin-bottom:10px;'><span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span></div>",
+            hora, corNome, nome, escaparHtml(texto)
+        );
+        adicionarLinhaHtml(linhaHtml);
     }
 
+    private String gerarHtmlAnexo(String nomeRemetente, String nomeArquivo, String tipo, String base64Data) {
+        String hora = formatter.format(new Date());
+        String corNome = nomeRemetente.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
+        String mediaHtml = "";
+
+        // Detecta extensão para definir MIME correto
+        String extensao = "";
+        int i = nomeArquivo.lastIndexOf('.');
+        if (i > 0) extensao = nomeArquivo.substring(i + 1).toLowerCase();
+
+        if (tipo.equals("image")) {
+            String mimeImg = extensao.equals("gif") ? "gif" : "png";
+            if (extensao.equals("jpg") || extensao.equals("jpeg")) mimeImg = "jpeg";
+            mediaHtml = String.format(
+                "<div><img src='data:image/%s;base64,%s' style='max-width:250px; max-height:200px; border-radius:8px; margin-top:5px;'/></div>",
+                mimeImg, base64Data
+            );
+        } else if (tipo.equals("video")) {
+            String mimeVideo = "video/mp4";
+            if (extensao.equals("avi")) mimeVideo = "video/x-msvideo";
+            else if (extensao.equals("mov")) mimeVideo = "video/quicktime";
+            else if (extensao.equals("webm")) mimeVideo = "video/webm";
+            else if (extensao.equals("ogg")) mimeVideo = "video/ogg";
+
+            mediaHtml = String.format(
+                "<div><video controls style='max-width:250px; max-height:200px; border-radius:8px;'>" +
+                "<source src='data:%s;base64,%s' type='%s'>" +
+                "Seu navegador não suporta vídeo.</video></div>",
+                mimeVideo, base64Data, mimeVideo
+            );
+        } else {
+            mediaHtml = "<div>[Arquivo não suportado]</div>";
+        }
+
+        return String.format(
+            "<div style='margin-bottom:15px;'>" +
+            "<span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s</b> enviou <i>%s</i><br/>" +
+            "%s" +
+            "</div>",
+            hora, corNome, nomeRemetente, nomeArquivo, mediaHtml
+        );
+    }
+
+    private String escaparHtml(String texto) {
+        return texto.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;");
+    }
+
+    // ========== ENVIO DE ARQUIVO ==========
+    private void enviarAnexo() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Selecionar arquivo (imagem, GIF ou vídeo)");
+        fileChooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"),
+            new FileChooser.ExtensionFilter("Vídeos", "*.mp4", "*.avi", "*.mov"),
+            new FileChooser.ExtensionFilter("Todos os arquivos", "*.*")
+        );
+        File arquivo = fileChooser.showOpenDialog(null);
+        if (arquivo == null) return;
+
+        if (arquivo.length() > 5 * 1024 * 1024) {
+            mostrarAlerta("Arquivo muito grande", "Máximo permitido: 5 MB");
+            return;
+        }
+
+        String nomeArquivo = arquivo.getName();
+        String tipo = nomeArquivo.matches(".*\\.(png|jpg|jpeg|gif|bmp)$") ? "image" : "video";
+
+        try {
+            byte[] bytes = new byte[(int) arquivo.length()];
+            try (FileInputStream fis = new FileInputStream(arquivo)) {
+                fis.read(bytes);
+            }
+            String base64 = Base64.getEncoder().encodeToString(bytes);
+            String mensagem = "FILE|" + nomeArquivo + "|" + tipo + "|" + base64;
+            out.println(nomeUsuario + "|" + mensagem);
+        } catch (IOException e) {
+            mostrarAlerta("Erro", "Não foi possível ler o arquivo.");
+        }
+    }
+
+    // ========== SELETOR DE EMOJIS ==========
+    private void mostrarMenuEmoji() {
+        ChoiceDialog<String> dialog = new ChoiceDialog<>("😀", "😀", "😂", "😍", "😎", "😢", "🔥", "👍", "❤️", "🎉");
+        dialog.setTitle("Emojis");
+        dialog.setHeaderText("Escolha um emoji para inserir");
+        dialog.setContentText("Emoji:");
+        dialog.showAndWait().ifPresent(emoji -> {
+            int pos = campoMensagem.getCaretPosition();
+            String texto = campoMensagem.getText();
+            campoMensagem.setText(texto.substring(0, pos) + emoji + texto.substring(pos));
+            campoMensagem.positionCaret(pos + emoji.length());
+        });
+    }
+
+    // ========== CONEXÃO COM O SERVIDOR ==========
     private void conectarServidor() {
         new Thread(() -> {
             try {
                 Socket socket = new Socket("localhost", 12345);
                 out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                
-                // Primeiro comando tem que ser o LOGIN
+
                 out.println("LOGIN|" + nomeUsuario);
 
                 String linha;
@@ -151,30 +294,57 @@ public class Cliente extends Application {
                         String[] nomes = linha.substring(5).split(",");
                         Platform.runLater(() -> {
                             torresOnline.clear();
-                            for (String n : nomes) if (!n.isEmpty()) torresOnline.add("o " + n + (n.equals(nomeUsuario) ? " [VOCE]" : ""));
+                            for (String n : nomes) if (!n.isEmpty()) torresOnline.add("⛰️ " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
                         });
                     } else if (linha.startsWith("JOIN|")) {
                         String n = linha.substring(5);
                         Platform.runLater(() -> {
-                            if (!torresOnline.contains("o " + n)) torresOnline.add("o " + n);
-                            adicionarMensagemAoChat("SISTEMA", n + " entrou.");
+                            if (!torresOnline.contains("⛰️ " + n)) torresOnline.add("⛰️ " + n);
+                            adicionarMensagemAoChat("SISTEMA", n + " entrou na frequência.");
                         });
                     } else if (linha.startsWith("LEAVE|")) {
                         String n = linha.substring(6);
                         Platform.runLater(() -> {
-                            torresOnline.remove("o " + n);
-                            adicionarMensagemAoChat("SISTEMA", n + " saiu.");
+                            torresOnline.remove("⛰️ " + n);
+                            adicionarMensagemAoChat("SISTEMA", n + " saiu da frequência.");
                         });
                     } else {
-                        // Se cair aqui e mensagem normal
                         String[] partes = linha.split("\\|", 2);
-                        if (partes.length == 2) adicionarMensagemAoChat(partes[0], partes[1]);
+                        if (partes.length == 2) {
+                            adicionarMensagemAoChat(partes[0], partes[1]);
+                        }
                     }
                 }
             } catch (Exception e) {
-                Platform.runLater(() -> adicionarMensagemAoChat("ERRO", "Central offline."));
+                Platform.runLater(() -> adicionarMensagemAoChat("ERRO", "Conexão perdida com a central."));
             }
         }).start();
+    }
+
+    private void enviarMensagem() {
+        String msg = campoMensagem.getText().trim();
+        if (!msg.isEmpty() && out != null) {
+            out.println(nomeUsuario + "|" + msg);
+            campoMensagem.clear();
+        }
+    }
+
+    private String mostrarTelaLogin() {
+        TextInputDialog login = new TextInputDialog();
+        login.setTitle("AUTENTICAÇÃO");
+        login.setHeaderText("CENTRAL DE COMANDO TALKTREE");
+        login.setContentText("IDENTIFIQUE SUA TORRE:");
+        return login.showAndWait().orElse(null);
+    }
+
+    private void mostrarAlerta(String titulo, String conteudo) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(titulo);
+            alert.setHeaderText(null);
+            alert.setContentText(conteudo);
+            alert.showAndWait();
+        });
     }
 
     public static void main(String[] args) {
