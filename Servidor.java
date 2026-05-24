@@ -7,20 +7,13 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * SERVIDOR DA CENTRAL DE BRIGADA
- * Basicamente o cerebro que gerencia as torres na mata.
- */
 public class Servidor {
-    // Mapa que associa cada radio ao nome da torre
     private static Map<PrintWriter, String> clientes = new HashMap<>();
 
     public static void main(String[] args) {
-        // Forcar UTF-8 pq o Windows é chato com acentos
         try {
             System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
-        } catch (Exception e) {
-        }
+        } catch (Exception e) {}
 
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
 
@@ -56,14 +49,14 @@ public class Servidor {
                 nomeTorre = login.substring(6);
 
                 synchronized (clientes) {
-                    // Manda a lista atual para o novato
+                    // Envia lista atual para o novato
                     StringBuilder lista = new StringBuilder("LIST|");
                     for (String nome : clientes.values()) {
                         lista.append(nome).append(",");
                     }
                     out.println(lista.toString());
 
-                    // Avisa todos que um novo usuário entrou
+                    // Avisa todos sobre o novo usuário
                     for (PrintWriter escritor : clientes.keySet()) {
                         escritor.println("JOIN|" + nomeTorre);
                     }
@@ -72,9 +65,8 @@ public class Servidor {
 
                 String mensagem;
                 while ((mensagem = in.readLine()) != null) {
-                    // COMANDO ESPECIAL: REFRESH
                     if (mensagem.equals("REFRESH")) {
-                        // Envia a lista atualizada APENAS para este cliente
+                        // Retorna a lista atualizada apenas para este cliente
                         StringBuilder lista = new StringBuilder("LIST|");
                         synchronized (clientes) {
                             for (String nome : clientes.values()) {
@@ -83,7 +75,6 @@ public class Servidor {
                         }
                         out.println(lista.toString());
                     } else {
-                        // Mensagem normal: repassa para todos (formato "nome|texto")
                         System.out.println("[" + nomeTorre + "]: " + mensagem);
                         synchronized (clientes) {
                             for (PrintWriter escritor : clientes.keySet()) {
@@ -103,10 +94,7 @@ public class Servidor {
                         }
                     }
                 }
-                try {
-                    socket.close();
-                } catch (IOException e) {
-                }
+                try { socket.close(); } catch (IOException e) {}
             }
         }
     }

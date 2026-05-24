@@ -18,7 +18,6 @@ import java.util.Base64;
 import java.util.Date;
 
 public class Cliente extends Application {
-
     private WebView areaChat;
     private TextField campoMensagem;
     private ListView<String> listaTorres;
@@ -33,8 +32,14 @@ public class Cliente extends Application {
     private static final int MAX_HISTORICO = 200;
     private int contadorMensagens = 0;
 
+    private File pastaTemp; // para salvar vídeos temporariamente
+
     @Override
     public void start(Stage palcoPrincipal) {
+        // Cria pasta temporária para vídeos
+        pastaTemp = new File(System.getProperty("java.io.tmpdir"), "talktree_videos");
+        if (!pastaTemp.exists()) pastaTemp.mkdirs();
+
         this.nomeUsuario = mostrarTelaLogin();
         if (nomeUsuario == null) System.exit(0);
 
@@ -106,10 +111,25 @@ public class Cliente extends Application {
         raiz.setCenter(painelChat);
 
         Scene cena = new Scene(raiz, 1100, 750);
+
+        // --- CARREGAMENTO DO CSS ---
         try {
-            cena.getStylesheets().add(getClass().getResource("estilo.css").toExternalForm());
+            String cssUrl = getClass().getResource("estilo.css").toExternalForm();
+            cena.getStylesheets().add(cssUrl);
+            System.out.println("CSS carregado: " + cssUrl);
         } catch (Exception e) {
-            System.out.println("CSS não encontrado, usando estilo padrão.");
+            System.out.println("Erro ao carregar CSS: " + e.getMessage());
+            try {
+                File cssFile = new File("estilo.css");
+                if (cssFile.exists()) {
+                    cena.getStylesheets().add(cssFile.toURI().toURL().toExternalForm());
+                    System.out.println("CSS carregado do arquivo local.");
+                } else {
+                    System.out.println("CSS não encontrado em lugar nenhum.");
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
         }
 
         palcoPrincipal.setTitle("TALKTREE // OPERACOES - " + nomeUsuario);
@@ -122,12 +142,20 @@ public class Cliente extends Application {
         campoMensagem.setOnAction(e -> enviarMensagem());
     }
 
+    // ========== FECHAMENTO ==========
     @Override
     public void stop() {
         if (out != null) out.close();
         try {
             if (socket != null && !socket.isClosed()) socket.close();
         } catch (IOException e) { e.printStackTrace(); }
+        // Limpa a pasta temporária
+        if (pastaTemp != null && pastaTemp.exists()) {
+            for (File f : pastaTemp.listFiles()) {
+                if (f.isFile()) f.delete();
+            }
+            pastaTemp.delete();
+        }
         System.out.println("Cliente desconectado: " + nomeUsuario);
     }
 
@@ -193,11 +221,10 @@ public class Cliente extends Application {
         String corNome = nomeRemetente.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
         String mediaHtml = "";
 
-        String extensao = "";
-        int i = nomeArquivo.lastIndexOf('.');
-        if (i > 0) extensao = nomeArquivo.substring(i + 1).toLowerCase();
-
         if (tipo.equals("image")) {
+            String extensao = "";
+            int i = nomeArquivo.lastIndexOf('.');
+            if (i > 0) extensao = nomeArquivo.substring(i + 1).toLowerCase();
             String mimeImg = extensao.equals("gif") ? "gif" : "png";
             if (extensao.equals("jpg") || extensao.equals("jpeg")) mimeImg = "jpeg";
             mediaHtml = String.format(
@@ -205,17 +232,18 @@ public class Cliente extends Application {
                 mimeImg, base64Data
             );
         } else if (tipo.equals("video")) {
-            String mimeVideo = "video/mp4";
-            if (extensao.equals("avi")) mimeVideo = "video/x-msvideo";
-            else if (extensao.equals("mov")) mimeVideo = "video/quicktime";
-            else if (extensao.equals("webm")) mimeVideo = "video/webm";
-            else if (extensao.equals("ogg")) mimeVideo = "video/ogg";
-            mediaHtml = String.format(
-                "<div><video controls style='max-width:250px; max-height:200px; border-radius:8px;'>" +
-                "<source src='data:%s;base64,%s' type='%s'>" +
-                "Seu navegador não suporta vídeo.</video></div>",
-                mimeVideo, base64Data, mimeVideo
-            );
+            String videoPath = salvarVideoTemp(nomeArquivo, base64Data);
+            if (videoPath != null) {
+                String videoUrl = new File(videoPath).toURI().toString();
+                mediaHtml = String.format(
+                    "<div><video controls style='max-width:250px; max-height:200px; border-radius:8px;'>" +
+                    "<source src='%s' type='video/mp4'>" +
+                    "Seu navegador não suporta vídeo.</video></div>",
+                    videoUrl
+                );
+            } else {
+                mediaHtml = "<div>[Erro ao carregar vídeo]</div>";
+            }
         } else {
             mediaHtml = "<div>[Arquivo não suportado]</div>";
         }
@@ -227,6 +255,22 @@ public class Cliente extends Application {
             "</div>",
             hora, corNome, nomeRemetente, nomeArquivo, mediaHtml
         );
+    }
+
+    private String salvarVideoTemp(String nomeOriginal, String base64Data) {
+        try {
+            String nomeUnico = System.currentTimeMillis() + "_" + nomeOriginal;
+            File videoFile = new File(pastaTemp, nomeUnico);
+            byte[] dados = Base64.getDecoder().decode(base64Data);
+            try (FileOutputStream fos = new FileOutputStream(videoFile)) {
+                fos.write(dados);
+            }
+            videoFile.deleteOnExit();
+            return videoFile.getAbsolutePath();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private String escaparHtml(String texto) {
@@ -255,6 +299,11 @@ public class Cliente extends Application {
 
         String nomeArquivo = arquivo.getName();
         String tipo = nomeArquivo.matches(".*\\.(png|jpg|jpeg|gif|bmp)$") ? "image" : "video";
+
+        // Avisa se não for MP4 (pode não funcionar)
+        if (tipo.equals("video") && !nomeArquivo.toLowerCase().endsWith(".mp4")) {
+            mostrarAlerta("Atenção", "Apenas vídeos MP4 (codec H.264) funcionarão corretamente.");
+        }
 
         try {
             byte[] bytes = new byte[(int) arquivo.length()];
