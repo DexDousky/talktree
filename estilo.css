@@ -88,3 +88,16 @@
 .botao-transmitir:hover {
     -fx-background-color: #FF8C00; /* Brilha mais no hover */
 }
+
+.botao-refresh {
+    -fx-background-color: #282835;
+    -fx-text-fill: #FF6E00;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+    -fx-padding: 5px 10px;
+}
+.botao-refresh:hover {
+    -fx-background-color: #3C3C4B;
+}

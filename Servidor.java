@@ -13,23 +13,19 @@ import java.util.Map;
  */
 public class Servidor {
     // Mapa que associa cada radio ao nome da torre
-    // Pra gente saber quem é quem na frequencia
     private static Map<PrintWriter, String> clientes = new HashMap<>();
 
     public static void main(String[] args) {
-        // Forcar UTF-8 pq o Windows e chato com acentos
+        // Forcar UTF-8 pq o Windows é chato com acentos
         try {
             System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
         } catch (Exception e) {
-            
         }
 
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
 
-        // Porta 12345 pq e facil de decorar
         try (ServerSocket servidorSocket = new ServerSocket(12345)) {
             while (true) {
-                // Fica esperando algum brigadista sintonizar
                 new ManipuladorCliente(servidorSocket.accept()).start();
             }
         } catch (IOException e) {
@@ -37,7 +33,6 @@ public class Servidor {
         }
     }
 
-    // Essa classe cuida de cada radio individualmente pra nao travar tudo
     private static class ManipuladorCliente extends Thread {
         private Socket socket;
         private PrintWriter out;
@@ -53,7 +48,6 @@ public class Servidor {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
-                // O radio tem que mandar LOGIN/nome logo que liga
                 String login = in.readLine();
                 if (login == null || !login.startsWith("LOGIN|")) {
                     socket.close();
@@ -62,37 +56,45 @@ public class Servidor {
                 nomeTorre = login.substring(6);
 
                 synchronized (clientes) {
-                    // Manda a lista de quem ja ta na mata pro novato
+                    // Manda a lista atual para o novato
                     StringBuilder lista = new StringBuilder("LIST|");
                     for (String nome : clientes.values()) {
                         lista.append(nome).append(",");
                     }
                     out.println(lista.toString());
 
-                    // Avisa a geral que chegou mais outro radio na rede
+                    // Avisa todos que um novo usuário entrou
                     for (PrintWriter escritor : clientes.keySet()) {
                         escritor.println("JOIN|" + nomeTorre);
                     }
-
-                    // Guarda o radio no nosso mapa
                     clientes.put(out, nomeTorre);
                 }
 
-                // Loop principal pra ficar ouvindo as mensagens
                 String mensagem;
                 while ((mensagem = in.readLine()) != null) {
-                    // O radio envia no formato: nome|texto
-                    System.out.println("[" + nomeTorre + "]: " + mensagem);
-                    synchronized (clientes) {
-                        for (PrintWriter escritor : clientes.keySet()) {
-                            escritor.println(mensagem); // Repassa pra todo mundo
+                    // COMANDO ESPECIAL: REFRESH
+                    if (mensagem.equals("REFRESH")) {
+                        // Envia a lista atualizada APENAS para este cliente
+                        StringBuilder lista = new StringBuilder("LIST|");
+                        synchronized (clientes) {
+                            for (String nome : clientes.values()) {
+                                lista.append(nome).append(",");
+                            }
+                        }
+                        out.println(lista.toString());
+                    } else {
+                        // Mensagem normal: repassa para todos (formato "nome|texto")
+                        System.out.println("[" + nomeTorre + "]: " + mensagem);
+                        synchronized (clientes) {
+                            for (PrintWriter escritor : clientes.keySet()) {
+                                escritor.println(mensagem);
+                            }
                         }
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Conex�o perdida com " + nomeTorre);
+                System.out.println("Conexão perdida com " + nomeTorre);
             } finally {
-                // Se o brigadista sumir, limpa ele da lista e avisa os outros
                 if (nomeTorre != null) {
                     synchronized (clientes) {
                         clientes.remove(out);
@@ -101,7 +103,10 @@ public class Servidor {
                         }
                     }
                 }
-                try { socket.close(); } catch (IOException e) {}
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                }
             }
         }
     }

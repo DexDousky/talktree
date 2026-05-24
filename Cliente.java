@@ -16,9 +16,6 @@ import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 
 public class Cliente extends Application {
 
@@ -28,11 +25,11 @@ public class Cliente extends Application {
     private ObservableList<String> torresOnline = FXCollections.observableArrayList();
 
     private PrintWriter out;
+    private Socket socket;
     private String nomeUsuario;
     private StringBuilder historicoHtml = new StringBuilder();
     private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
 
-    // limite de histórico (últimas 200 mensagens)
     private static final int MAX_HISTORICO = 200;
     private int contadorMensagens = 0;
 
@@ -47,12 +44,18 @@ public class Cliente extends Application {
         sidebar.setPrefWidth(260);
         sidebar.setPadding(new Insets(20));
 
+        HBox headerSidebar = new HBox(10);
+        headerSidebar.setAlignment(Pos.CENTER_LEFT);
         Label tituloSidebar = new Label("SINAIS DE RADIO");
         tituloSidebar.getStyleClass().add("titulo-sidebar");
+        Button btnRefresh = new Button("⟳");
+        btnRefresh.getStyleClass().add("botao-refresh");
+        btnRefresh.setOnAction(e -> solicitarRefresh());
+        headerSidebar.getChildren().addAll(tituloSidebar, btnRefresh);
 
         listaTorres = new ListView<>(torresOnline);
         VBox.setVgrow(listaTorres, Priority.ALWAYS);
-        sidebar.getChildren().addAll(tituloSidebar, listaTorres);
+        sidebar.getChildren().addAll(headerSidebar, listaTorres);
 
         // --- CHAT ---
         VBox painelChat = new VBox();
@@ -67,7 +70,7 @@ public class Cliente extends Application {
         VBox.setVgrow(areaChat, Priority.ALWAYS);
         iniciarHistorico();
 
-        // --- RODAPE COM INPUT, EMOTES E ANEXO ---
+        // --- RODAPÉ ---
         HBox rodape = new HBox(10);
         rodape.getStyleClass().add("rodape");
         rodape.setAlignment(Pos.CENTER);
@@ -78,14 +81,12 @@ public class Cliente extends Application {
         campoMensagem.getStyleClass().add("campo-mensagem");
         HBox.setHgrow(campoMensagem, Priority.ALWAYS);
 
-        // Botão de emojis
         Button btnEmoji = new Button("😀");
         btnEmoji.getStyleClass().add("botao-emoji");
         btnEmoji.setPrefWidth(50);
         btnEmoji.setPrefHeight(45);
         btnEmoji.setOnAction(e -> mostrarMenuEmoji());
 
-        // Botão de anexo
         Button btnAnexo = new Button("📎");
         btnAnexo.getStyleClass().add("botao-anexo");
         btnAnexo.setPrefWidth(50);
@@ -117,12 +118,20 @@ public class Cliente extends Application {
 
         conectarServidor();
 
-        // Eventos de envio
         btnTransmitir.setOnAction(e -> enviarMensagem());
         campoMensagem.setOnAction(e -> enviarMensagem());
     }
 
-    // ========== LÓGICA DO HISTÓRICO (HTML) ==========
+    @Override
+    public void stop() {
+        if (out != null) out.close();
+        try {
+            if (socket != null && !socket.isClosed()) socket.close();
+        } catch (IOException e) { e.printStackTrace(); }
+        System.out.println("Cliente desconectado: " + nomeUsuario);
+    }
+
+    // ========== HISTÓRICO ==========
     private void iniciarHistorico() {
         historicoHtml = new StringBuilder();
         historicoHtml.append("<html><body style='background-color:#121218; color:#DCDCDC; font-family:Monospaced; font-size:13px; margin:15px;'>");
@@ -155,17 +164,16 @@ public class Cliente extends Application {
         });
     }
 
-    // ========== MENSAGENS DE TEXTO E ARQUIVO ==========
+    // ========== MENSAGENS ==========
     private void adicionarMensagemAoChat(String nome, String texto) {
         String hora = formatter.format(new Date());
         String corNome = nome.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
 
-        // Verifica se é uma mensagem de arquivo (FILE|nome|tipo|base64)
         if (texto.startsWith("FILE|")) {
             String[] partes = texto.split("\\|", 4);
             if (partes.length == 4 && partes[0].equals("FILE")) {
                 String nomeArquivo = partes[1];
-                String tipo = partes[2];   // "image" ou "video"
+                String tipo = partes[2];
                 String base64Data = partes[3];
                 String htmlAnexo = gerarHtmlAnexo(nome, nomeArquivo, tipo, base64Data);
                 adicionarLinhaHtml(htmlAnexo);
@@ -173,7 +181,6 @@ public class Cliente extends Application {
             }
         }
 
-        // Mensagem de texto normal
         String linhaHtml = String.format(
             "<div style='margin-bottom:10px;'><span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span></div>",
             hora, corNome, nome, escaparHtml(texto)
@@ -186,7 +193,6 @@ public class Cliente extends Application {
         String corNome = nomeRemetente.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
         String mediaHtml = "";
 
-        // Detecta extensão para definir MIME correto
         String extensao = "";
         int i = nomeArquivo.lastIndexOf('.');
         if (i > 0) extensao = nomeArquivo.substring(i + 1).toLowerCase();
@@ -204,7 +210,6 @@ public class Cliente extends Application {
             else if (extensao.equals("mov")) mimeVideo = "video/quicktime";
             else if (extensao.equals("webm")) mimeVideo = "video/webm";
             else if (extensao.equals("ogg")) mimeVideo = "video/ogg";
-
             mediaHtml = String.format(
                 "<div><video controls style='max-width:250px; max-height:200px; border-radius:8px;'>" +
                 "<source src='data:%s;base64,%s' type='%s'>" +
@@ -264,7 +269,7 @@ public class Cliente extends Application {
         }
     }
 
-    // ========== SELETOR DE EMOJIS ==========
+    // ========== EMOJIS ==========
     private void mostrarMenuEmoji() {
         ChoiceDialog<String> dialog = new ChoiceDialog<>("😀", "😀", "😂", "😍", "😎", "😢", "🔥", "👍", "❤️", "🎉");
         dialog.setTitle("Emojis");
@@ -278,11 +283,16 @@ public class Cliente extends Application {
         });
     }
 
-    // ========== CONEXÃO COM O SERVIDOR ==========
+    // ========== REFRESH ==========
+    private void solicitarRefresh() {
+        if (out != null) out.println("REFRESH");
+    }
+
+    // ========== CONEXÃO COM SERVIDOR ==========
     private void conectarServidor() {
         new Thread(() -> {
             try {
-                Socket socket = new Socket("localhost", 12345);
+                socket = new Socket("localhost", 12345);
                 out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
@@ -294,7 +304,8 @@ public class Cliente extends Application {
                         String[] nomes = linha.substring(5).split(",");
                         Platform.runLater(() -> {
                             torresOnline.clear();
-                            for (String n : nomes) if (!n.isEmpty()) torresOnline.add("⛰️ " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
+                            for (String n : nomes) if (!n.isEmpty())
+                                torresOnline.add("⛰️ " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
                         });
                     } else if (linha.startsWith("JOIN|")) {
                         String n = linha.substring(5);
@@ -310,9 +321,7 @@ public class Cliente extends Application {
                         });
                     } else {
                         String[] partes = linha.split("\\|", 2);
-                        if (partes.length == 2) {
-                            adicionarMensagemAoChat(partes[0], partes[1]);
-                        }
+                        if (partes.length == 2) adicionarMensagemAoChat(partes[0], partes[1]);
                     }
                 }
             } catch (Exception e) {
