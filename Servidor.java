@@ -15,7 +15,8 @@ public class Servidor {
     public static void main(String[] args) {
         try {
             System.setOut(new java.io.PrintStream(System.out, true, "UTF-8"));
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
 
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
 
@@ -83,9 +84,11 @@ public class Servidor {
                         DateTimeFormatter formatador = DateTimeFormatter.ofPattern("HH:mm");
                         String horaFormatada = agora.format(formatador);
 
-                        String mensagemFinal = nomeTorre + "|[" + horaFormatada + "] " + textoRecebido;
-                        
-                        System.out.println(mensagemFinal);
+                        String mensagemFinal = nomeTorre + "|" + textoRecebido;
+
+                        String logConsole = textoRecebido.startsWith("FILE|") ? "[ARQUIVO ANEXADO]" : textoRecebido;
+                        System.out.println(nomeTorre + "|[" + horaFormatada + "] " + logConsole);
+
                         synchronized (clientes) {
                             for (PrintWriter escritor : clientes.keySet()) {
                                 escritor.println(mensagemFinal);
@@ -104,7 +107,10 @@ public class Servidor {
                         }
                     }
                 }
-                try { socket.close(); } catch (IOException e) {}
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                }
             }
         }
     }
