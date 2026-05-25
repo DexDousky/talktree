@@ -349,21 +349,21 @@ public class Cliente extends Application {
 
                 String linha;
                 while ((linha = in.readLine()) != null) {
-                    if (linha.startsWith("LIST|")) {
-                        String[] nomes = linha.substring(5).split(",");
+                    if (linha.startsWith("LISTA|")) {
+                        String[] nomes = linha.substring(6).split(",");
                         Platform.runLater(() -> {
                             torresOnline.clear();
                             for (String n : nomes) if (!n.isEmpty())
                                 torresOnline.add("⛰️ " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
                         });
-                    } else if (linha.startsWith("JOIN|")) {
-                        String n = linha.substring(5);
+                    } else if (linha.startsWith("ENTROU|")) {
+                        String n = linha.substring(7);
                         Platform.runLater(() -> {
                             if (!torresOnline.contains("⛰️ " + n)) torresOnline.add("⛰️ " + n);
                             adicionarMensagemAoChat("SISTEMA", n + " entrou na frequência.");
                         });
-                    } else if (linha.startsWith("LEAVE|")) {
-                        String n = linha.substring(6);
+                    } else if (linha.startsWith("SAIU|")) {
+                        String n = linha.substring(5);
                         Platform.runLater(() -> {
                             torresOnline.remove("⛰️ " + n);
                             adicionarMensagemAoChat("SISTEMA", n + " saiu da frequência.");
