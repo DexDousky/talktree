@@ -150,7 +150,7 @@ public class Servidor {
 
                         String mensagemFinal = nomeTorre + "|" + textoRecebido;
 
-                        String logConsole = textoRecebido.startsWith("FILE|") ? "[ARQUIVO ANEXADO]" : textoRecebido;
+                        String logConsole = (textoRecebido.startsWith("FILE|") || textoRecebido.startsWith("STICKER|")) ? "[ARQUIVO/STICKER ANEXADO]" : textoRecebido;
                         System.out.println(nomeTorre + "|[" + horaFormatada + "] " + logConsole);
 
                         synchronized (clientes) {

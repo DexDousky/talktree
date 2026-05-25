@@ -10,6 +10,8 @@ import javafx.scene.layout.*;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 import javafx.stage.FileChooser;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 
 import java.io.*;
 import java.net.Socket;
@@ -31,6 +33,11 @@ public class Cliente extends Application {
 
     private static final int MAX_HISTORICO = 200;
     private int contadorMensagens = 0;
+    private static final String[] STICKERS = {
+        "...sei la", "2019", "L.", "L.K.", "amor", "anjo", "choro", "demonio",
+        "envergonhado", "flerte", "fome", "frisk", "nerd", "piscando", "raiva",
+        "rindo", "sono", "sorrindo", "sou foda", "triste"
+    };
 
     private File pastaTemp; // para salvar vídeos temporariamente
     private ComboBox<String> comboCanais;
@@ -108,7 +115,7 @@ public class Cliente extends Application {
         btnEmoji.getStyleClass().add("botao-emoji");
         btnEmoji.setPrefWidth(50);
         btnEmoji.setPrefHeight(45);
-        btnEmoji.setOnAction(e -> mostrarMenuEmoji());
+        btnEmoji.setOnAction(e -> mostrarMenuEmoji(btnEmoji));
 
         Button btnAnexo = new Button("📎");
         btnAnexo.getStyleClass().add("botao-anexo");
@@ -228,6 +235,17 @@ public class Cliente extends Application {
             }
         }
 
+        if (texto.startsWith("STICKER|")) {
+            String[] partes = texto.split("\\|", 3);
+            if (partes.length == 3 && partes[0].equals("STICKER")) {
+                String nomeEmoji = partes[1];
+                String base64Data = partes[2];
+                String htmlSticker = gerarHtmlSticker(nome, nomeEmoji, base64Data);
+                adicionarLinhaHtml(htmlSticker);
+                return;
+            }
+        }
+
         String linhaHtml = String.format(
             "<div style='margin-bottom:10px;'><span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span></div>",
             hora, corNome, nome, escaparHtml(texto)
@@ -274,6 +292,34 @@ public class Cliente extends Application {
             "</div>",
             hora, corNome, nomeRemetente, nomeArquivo, mediaHtml
         );
+    }
+
+    private String gerarHtmlSticker(String nomeRemetente, String nomeEmoji, String base64Data) {
+        String hora = formatter.format(new Date());
+        String corNome = nomeRemetente.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
+        return String.format(
+            "<div style='margin-bottom:15px;'>" +
+            "<span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b><br/>" +
+            "<div><img src='data:image/png;base64,%s' style='width:90px; height:90px; border-radius:8px; margin-top:5px; border: 1px solid #282835;' alt='%s'/></div>" +
+            "</div>",
+            hora, corNome, nomeRemetente, base64Data, nomeEmoji
+        );
+    }
+
+    private void enviarSticker(String nome, File arquivo) {
+        try {
+            byte[] bytes = new byte[(int) arquivo.length()];
+            try (FileInputStream fis = new FileInputStream(arquivo)) {
+                fis.read(bytes);
+            }
+            String base64 = Base64.getEncoder().encodeToString(bytes);
+            String mensagem = "STICKER|" + nome + "|" + base64;
+            if (out != null) {
+                out.println(nomeUsuario + "|" + mensagem);
+            }
+        } catch (IOException e) {
+            mostrarAlerta("Erro", "Nao foi possivel ler o sticker.");
+        }
     }
 
     private String salvarVideoTemp(String nomeOriginal, String base64Data) {
@@ -338,17 +384,88 @@ public class Cliente extends Application {
     }
 
     // ========== EMOJIS ==========
-    private void mostrarMenuEmoji() {
-        ChoiceDialog<String> dialog = new ChoiceDialog<>("😀", "😀", "😂", "😍", "😎", "😢", "🔥", "👍", "❤️", "🎉");
-        dialog.setTitle("Emojis");
-        dialog.setHeaderText("Escolha um emoji para inserir");
-        dialog.setContentText("Emoji:");
-        dialog.showAndWait().ifPresent(emoji -> {
-            int pos = campoMensagem.getCaretPosition();
-            String texto = campoMensagem.getText();
-            campoMensagem.setText(texto.substring(0, pos) + emoji + texto.substring(pos));
-            campoMensagem.positionCaret(pos + emoji.length());
+    private void mostrarMenuEmoji(Button btnEmoji) {
+        Stage popup = new Stage();
+        popup.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        popup.initOwner(campoMensagem.getScene().getWindow());
+        popup.initModality(javafx.stage.Modality.NONE);
+        
+        TilePane painelGrelha = new TilePane();
+        painelGrelha.setPadding(new Insets(15));
+        painelGrelha.setHgap(10);
+        painelGrelha.setVgap(10);
+        painelGrelha.setPrefColumns(5);
+        painelGrelha.setStyle("-fx-background-color: #121218;");
+        
+        for (String nome : STICKERS) {
+            try {
+                File arquivo = new File("emojis/" + nome + ".png");
+                if (arquivo.exists()) {
+                    Image img = new Image(arquivo.toURI().toString(), 60, 60, true, true);
+                    ImageView imgView = new ImageView(img);
+                    Button btn = new Button();
+                    btn.setGraphic(imgView);
+                    btn.getStyleClass().add("botao-sticker");
+                    btn.setPrefSize(70, 70);
+                    btn.setOnAction(e -> {
+                        enviarSticker(nome, arquivo);
+                        popup.close();
+                    });
+                    painelGrelha.getChildren().add(btn);
+                }
+            } catch (Exception ex) {
+            }
+        }
+        
+        ScrollPane scroll = new ScrollPane(painelGrelha);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(320);
+        scroll.setPrefViewportWidth(400);
+        scroll.setStyle("-fx-background: #121218; -fx-border-color: transparent;");
+        
+        HBox cabecalho = new HBox();
+        cabecalho.setPadding(new Insets(10, 15, 5, 15));
+        cabecalho.setAlignment(Pos.CENTER_LEFT);
+        Label labelTitulo = new Label("EMOJIS");
+        labelTitulo.setStyle("-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-weight: bold; -fx-font-size: 12px;");
+        cabecalho.getChildren().add(labelTitulo);
+        
+        VBox raizPopup = new VBox();
+        raizPopup.setStyle("-fx-background-color: #121218; -fx-border-color: #282835; -fx-border-width: 1; -fx-border-radius: 5px; -fx-background-radius: 5px;");
+        raizPopup.getChildren().addAll(cabecalho, scroll);
+        
+        Scene cenaPopup = new Scene(raizPopup);
+        try {
+            String cssUrl = getClass().getResource("estilo.css").toExternalForm();
+            cenaPopup.getStylesheets().add(cssUrl);
+        } catch (Exception e) {
+            try {
+                File cssFile = new File("estilo.css");
+                if (cssFile.exists()) {
+                    cenaPopup.getStylesheets().add(cssFile.toURI().toURL().toExternalForm());
+                }
+            } catch (Exception ex) {
+            }
+        }
+        popup.setScene(cenaPopup);
+        popup.setResizable(false);
+        
+        try {
+            javafx.geometry.Point2D coord = btnEmoji.localToScreen(0, 0);
+            if (coord != null) {
+                popup.setX(coord.getX() - 175);
+                popup.setY(coord.getY() - 380);
+            }
+        } catch (Exception ex) {
+        }
+        
+        popup.focusedProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal) {
+                popup.close();
+            }
         });
+        
+        popup.show();
     }
 
     // ========== REFRESH ==========

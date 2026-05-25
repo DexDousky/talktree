@@ -127,3 +127,17 @@
 .botao-criar-canal:hover {
     -fx-background-color: #3C3C4B;
 }
+
+.botao-sticker {
+    -fx-background-color: transparent;
+    -fx-border-color: #282835;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+    -fx-padding: 5px;
+}
+
+.botao-sticker:hover {
+    -fx-background-color: #1E1E28;
+    -fx-border-color: #FF6E00;
+}
