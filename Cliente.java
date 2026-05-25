@@ -449,12 +449,79 @@ public class Cliente extends Application {
         }
     }
 
+    // ta com base no css isso daq
+    
     private String mostrarTelaLogin() {
-        TextInputDialog login = new TextInputDialog();
-        login.setTitle("AUTENTICAÇÃO");
-        login.setHeaderText("CENTRAL DE COMANDO TALKTREE");
-        login.setContentText("IDENTIFIQUE SUA TORRE:");
-        return login.showAndWait().orElse(null);
+        Stage loginStage = new Stage();
+        loginStage.setTitle("AUTENTICAÇÃO - TALKTREE");
+        loginStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        loginStage.setResizable(false);
+
+        // Layout principal
+        VBox painel = new VBox(20);
+        painel.setAlignment(Pos.CENTER);
+        painel.setPadding(new Insets(30));
+        painel.setStyle("-fx-background-color: #121218;");
+
+        // Título
+        Label titulo = new Label("CENTRAL DE COMANDO TALKTREE");
+        titulo.setStyle("-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-weight: bold; -fx-font-size: 18px;");
+        
+        // Subtítulo
+        Label subtitulo = new Label("IDENTIFIQUE SUA TORRE:");
+        subtitulo.setStyle("-fx-text-fill: #A0A0AA; -fx-font-family: 'Monospaced'; -fx-font-size: 14px;");
+
+        // Campo de texto
+        TextField campoNome = new TextField();
+        campoNome.setPromptText("Ex: TORRE_NORTE");
+        campoNome.getStyleClass().add("campo-mensagem");
+        campoNome.setMaxWidth(300);
+        campoNome.setPrefWidth(300);
+        
+        // Botão entrar
+        Button btnEntrar = new Button("ENTRAR");
+        btnEntrar.getStyleClass().add("botao-transmitir");
+        btnEntrar.setPrefWidth(150);
+        btnEntrar.setDefaultButton(true);
+        
+        // Label para erro
+        Label labelErro = new Label();
+        labelErro.setStyle("-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-size: 12px;");
+
+        // Ação do botão e tecla Enter
+        Runnable acaoLogin = () -> {
+            String nome = campoNome.getText().trim();
+            if (nome.isEmpty()) {
+                labelErro.setText("ERRO: Nome não pode estar vazio.");
+            } else {
+                loginStage.close();
+            }
+        };
+        
+        btnEntrar.setOnAction(e -> acaoLogin.run());
+        campoNome.setOnAction(e -> acaoLogin.run());
+
+        // Fechar a janela -> encerra programa
+        loginStage.setOnCloseRequest(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
+
+        painel.getChildren().addAll(titulo, subtitulo, campoNome, btnEntrar, labelErro);
+        Scene cenaLogin = new Scene(painel, 500, 350);
+
+        // Aplica o CSS principal (reaproveita os estilos existentes)
+        try {
+            String cssUrl = getClass().getResource("estilo.css").toExternalForm();
+            cenaLogin.getStylesheets().add(cssUrl);
+        } catch (Exception e) {
+            // Caso não encontre o CSS, segue sem ele (funcionalidade normal)
+        }
+        
+        loginStage.setScene(cenaLogin);
+        loginStage.showAndWait();
+        
+        return campoNome.getText().trim().isEmpty() ? null : campoNome.getText().trim();
     }
 
     private void mostrarAlerta(String titulo, String conteudo) {
