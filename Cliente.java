@@ -70,6 +70,21 @@ public class Cliente extends Application {
         headerSidebar.getChildren().addAll(tituloSidebar, btnRefresh);
 
         listaTorres = new ListView<>(torresOnline);
+        listaTorres.setCellFactory(lv -> new ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item.replace("🟢 ", ""));
+                    javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(4, javafx.scene.paint.Color.web("#55C595"));
+                    setGraphic(dot);
+                    setGraphicTextGap(10);
+                }
+            }
+        });
         VBox.setVgrow(listaTorres, Priority.ALWAYS);
         sidebar.getChildren().addAll(headerSidebar, listaTorres);
 
@@ -187,8 +202,12 @@ public class Cliente extends Application {
     // ========== HISTÓRICO ==========
     private void iniciarHistorico() {
         historicoHtml = new StringBuilder();
-        historicoHtml.append("<html><body style='background-color:#121218; color:#DCDCDC; font-family:Monospaced; font-size:13px; margin:15px;'>");
-        historicoHtml.append("<div style='color:#555;'>--- INICIO DA TRANSMISSAO ---</div>");
+        historicoHtml.append("<html><head>");
+        historicoHtml.append("<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
+        historicoHtml.append("<style>");
+        historicoHtml.append("body { background-color: #0E0E12; background-image: url('").append(new File("rascunhos/sol.gif").toURI().toString()).append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
+        historicoHtml.append("</style></head><body>");
+        historicoHtml.append("<div style='color:#555; font-size:11px; margin-bottom:15px;'>--- CONEXAO ESTABELECIDA // SINTONIZADO ---</div>");
         contadoresCanais.put(canalAtual, 0);
         atualizarWebView();
     }
@@ -221,7 +240,6 @@ public class Cliente extends Application {
     // ========== MENSAGENS ==========
     private void adicionarMensagemAoChat(String nome, String texto) {
         String hora = formatter.format(new Date());
-        String corNome = nome.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
 
         if (texto.startsWith("FILE|")) {
             String[] partes = texto.split("\\|", 4);
@@ -246,16 +264,28 @@ public class Cliente extends Application {
             }
         }
 
+        if (nome.equals("SISTEMA") || nome.equals("ERRO")) {
+            String linhaHtml = String.format(
+                "<div style='color:#555; font-size:11px; margin-top:10px; margin-bottom:10px;'>[%s] // %s</div>",
+                hora, texto
+            );
+            adicionarLinhaHtml(linhaHtml);
+            return;
+        }
+
+        String corNome = nome.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         String linhaHtml = String.format(
-            "<div style='margin-bottom:10px;'><span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span></div>",
-            hora, corNome, nome, escaparHtml(texto)
+            "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>" +
+            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span>" +
+            "</div>",
+            corNome, hora, corNome, nome, escaparHtml(texto)
         );
         adicionarLinhaHtml(linhaHtml);
     }
 
     private String gerarHtmlAnexo(String nomeRemetente, String nomeArquivo, String tipo, String base64Data) {
         String hora = formatter.format(new Date());
-        String corNome = nomeRemetente.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
+        String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         String mediaHtml = "";
 
         if (tipo.equals("image")) {
@@ -265,7 +295,7 @@ public class Cliente extends Application {
             String mimeImg = extensao.equals("gif") ? "gif" : "png";
             if (extensao.equals("jpg") || extensao.equals("jpeg")) mimeImg = "jpeg";
             mediaHtml = String.format(
-                "<div><img src='data:image/%s;base64,%s' style='max-width:250px; max-height:200px; border-radius:8px; margin-top:5px;'/></div>",
+                "<div><img src='data:image/%s;base64,%s' style='max-width:250px; max-height:200px; border-radius:6px; margin-top:5px;'/></div>",
                 mimeImg, base64Data
             );
         } else if (tipo.equals("video")) {
@@ -273,36 +303,36 @@ public class Cliente extends Application {
             if (videoPath != null) {
                 String videoUrl = new File(videoPath).toURI().toString();
                 mediaHtml = String.format(
-                    "<div><video controls style='max-width:250px; max-height:200px; border-radius:8px;'>" +
+                    "<div><video controls style='max-width:250px; max-height:200px; border-radius:6px; margin-top:5px;'>" +
                     "<source src='%s' type='video/mp4'>" +
-                    "Seu navegador não suporta vídeo.</video></div>",
+                    "Seu navegador nao suporta video.</video></div>",
                     videoUrl
                 );
             } else {
-                mediaHtml = "<div>[Erro ao carregar vídeo]</div>";
+                mediaHtml = "<div>[Erro ao carregar video]</div>";
             }
         } else {
-            mediaHtml = "<div>[Arquivo não suportado]</div>";
+            mediaHtml = "<div>[Arquivo nao suportado]</div>";
         }
 
         return String.format(
-            "<div style='margin-bottom:15px;'>" +
-            "<span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s</b> enviou <i>%s</i><br/>" +
+            "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>" +
+            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s</b> enviou <i>%s</i><br/>" +
             "%s" +
             "</div>",
-            hora, corNome, nomeRemetente, nomeArquivo, mediaHtml
+            corNome, hora, corNome, nomeRemetente, nomeArquivo, mediaHtml
         );
     }
 
     private String gerarHtmlSticker(String nomeRemetente, String nomeEmoji, String base64Data) {
         String hora = formatter.format(new Date());
-        String corNome = nomeRemetente.equals(nomeUsuario) ? "#FF6E00" : "#00FF96";
+        String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         return String.format(
-            "<div style='margin-bottom:15px;'>" +
-            "<span style='color:#555;'>[%s]</span> <b style='color:%s;'>%s:</b><br/>" +
-            "<div><img src='data:image/png;base64,%s' style='width:90px; height:90px; border-radius:8px; margin-top:5px; border: 1px solid #282835;' alt='%s'/></div>" +
+            "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>" +
+            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b><br/>" +
+            "<div><img src='data:image/png;base64,%s' style='width:90px; height:90px; border-radius:6px; margin-top:5px;' alt='%s'/></div>" +
             "</div>",
-            hora, corNome, nomeRemetente, base64Data, nomeEmoji
+            corNome, hora, corNome, nomeRemetente, base64Data, nomeEmoji
         );
     }
 
@@ -570,40 +600,34 @@ public class Cliente extends Application {
     
     private String mostrarTelaLogin() {
         Stage loginStage = new Stage();
-        loginStage.setTitle("AUTENTICAÇÃO - TALKTREE");
+        loginStage.setTitle("CONECTAR - TALKTREE");
         loginStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
         loginStage.setResizable(false);
 
-        // Layout principal
         VBox painel = new VBox(20);
         painel.setAlignment(Pos.CENTER);
         painel.setPadding(new Insets(30));
-        painel.setStyle("-fx-background-color: #121218;");
+        painel.setStyle("-fx-background-color: #0E0E12; -fx-border-color: #21212B; -fx-border-width: 1px;");
 
-        // Título
-        Label titulo = new Label("CENTRAL DE COMANDO TALKTREE");
-        titulo.setStyle("-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-weight: bold; -fx-font-size: 18px;");
+        Label titulo = new Label("TALKTREE");
+        titulo.setStyle("-fx-text-fill: #E55934; -fx-font-family: 'Outfit'; -fx-font-weight: bold; -fx-font-size: 24px;");
         
-        // Subtítulo
-        Label subtitulo = new Label("IDENTIFIQUE SUA TORRE:");
-        subtitulo.setStyle("-fx-text-fill: #A0A0AA; -fx-font-family: 'Monospaced'; -fx-font-size: 14px;");
+        Label subtitulo = new Label("INSIRA SEU NOME DE USUÁRIO:");
+        subtitulo.setStyle("-fx-text-fill: #9898A6; -fx-font-family: 'Outfit'; -fx-font-size: 13px;");
 
-        // Campo de texto
         TextField campoNome = new TextField();
         campoNome.setPromptText("Ex: TORRE_NORTE");
         campoNome.getStyleClass().add("campo-mensagem");
         campoNome.setMaxWidth(300);
         campoNome.setPrefWidth(300);
         
-        // Botão entrar
-        Button btnEntrar = new Button("ENTRAR");
+        Button btnEntrar = new Button("CONECTAR FREQUÊNCIA");
         btnEntrar.getStyleClass().add("botao-transmitir");
-        btnEntrar.setPrefWidth(150);
+        btnEntrar.setPrefWidth(220);
         btnEntrar.setDefaultButton(true);
         
-        // Label para erro
         Label labelErro = new Label();
-        labelErro.setStyle("-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-size: 12px;");
+        labelErro.setStyle("-fx-text-fill: #E55934; -fx-font-family: 'Outfit'; -fx-font-size: 12px;");
 
         // Ação do botão e tecla Enter
         Runnable acaoLogin = () -> {

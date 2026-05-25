@@ -54,6 +54,9 @@ public class Servidor {
                 nomeTorre = login.substring(6);
 
                 synchronized (clientes) {
+                    clientes.put(out, nomeTorre);
+                    canais.put(out, "Canal 1");
+
                     StringBuilder sbCanais = new StringBuilder("CANAIS|");
                     synchronized (listaCanais) {
                         for (String c : listaCanais) {
@@ -71,12 +74,10 @@ public class Servidor {
                     out.println(lista.toString());
 
                     for (PrintWriter escritor : clientes.keySet()) {
-                        if (canais.get(escritor).equals("Canal 1")) {
+                        if (escritor != out && canais.get(escritor).equals("Canal 1")) {
                             escritor.println("ENTROU|" + nomeTorre);
                         }
                     }
-                    clientes.put(out, nomeTorre);
-                    canais.put(out, "Canal 1");
                 }
 
                 String mensagem;
