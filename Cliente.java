@@ -33,6 +33,10 @@ public class Cliente extends Application {
     private int contadorMensagens = 0;
 
     private File pastaTemp; // para salvar vídeos temporariamente
+    private ComboBox<String> comboCanais;
+    private String canalAtual = "Canal 1";
+    private java.util.Map<String, StringBuilder> historicosCanais = new java.util.HashMap<>();
+    private java.util.Map<String, Integer> contadoresCanais = new java.util.HashMap<>();
 
     @Override
     public void start(Stage palcoPrincipal) {
@@ -45,14 +49,14 @@ public class Cliente extends Application {
 
         // --- SIDEBAR ---
         VBox sidebar = new VBox(20);
-        sidebar.getStyleClass().add("sidebar");
+        sidebar.getStyleClass().add("barra-lateral");
         sidebar.setPrefWidth(260);
         sidebar.setPadding(new Insets(20));
 
         HBox headerSidebar = new HBox(10);
         headerSidebar.setAlignment(Pos.CENTER_LEFT);
         Label tituloSidebar = new Label("SINAIS DE RADIO");
-        tituloSidebar.getStyleClass().add("titulo-sidebar");
+        tituloSidebar.getStyleClass().add("titulo-barra-lateral");
         Button btnRefresh = new Button("⟳");
         btnRefresh.getStyleClass().add("botao-refresh");
         btnRefresh.setOnAction(e -> solicitarRefresh());
@@ -64,12 +68,26 @@ public class Cliente extends Application {
 
         // --- CHAT ---
         VBox painelChat = new VBox();
-        HBox header = new HBox();
-        header.getStyleClass().add("chat-header");
+        HBox header = new HBox(15);
+        header.getStyleClass().add("cabecalho-chat");
         header.setPadding(new Insets(15, 20, 15, 20));
-        Label labelCanal = new Label("SINTONIZADO: CANAL_7_NORTE");
-        labelCanal.setStyle("-fx-text-fill: #00FF96; -fx-font-family: 'Monospaced'; -fx-font-weight: bold;");
-        header.getChildren().add(labelCanal);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label labelCanal = new Label("SINTONIZADO:");
+        labelCanal.setStyle("-fx-text-fill: #A0A0AA; -fx-font-family: 'Monospaced'; -fx-font-weight: bold;");
+
+        comboCanais = new ComboBox<>();
+        comboCanais.getItems().addAll("Canal 1", "Canal 2");
+        comboCanais.setValue("Canal 1");
+        comboCanais.getStyleClass().add("combo-canais");
+        comboCanais.setPrefWidth(200);
+        comboCanais.setOnAction(e -> mudarCanalSelecionado());
+
+        Button btnCriar = new Button("+");
+        btnCriar.getStyleClass().add("botao-criar-canal");
+        btnCriar.setOnAction(e -> criarNovoCanal());
+
+        header.getChildren().addAll(labelCanal, comboCanais, btnCriar);
 
         areaChat = new WebView();
         VBox.setVgrow(areaChat, Priority.ALWAYS);
@@ -164,24 +182,25 @@ public class Cliente extends Application {
         historicoHtml = new StringBuilder();
         historicoHtml.append("<html><body style='background-color:#121218; color:#DCDCDC; font-family:Monospaced; font-size:13px; margin:15px;'>");
         historicoHtml.append("<div style='color:#555;'>--- INICIO DA TRANSMISSAO ---</div>");
-        contadorMensagens = 0;
+        contadoresCanais.put(canalAtual, 0);
         atualizarWebView();
     }
 
     private void adicionarLinhaHtml(String linhaHtml) {
-        if (contadorMensagens >= MAX_HISTORICO) {
+        int contador = contadoresCanais.getOrDefault(canalAtual, 0);
+        if (contador >= MAX_HISTORICO) {
             String atual = historicoHtml.toString();
             int primeiroDiv = atual.indexOf("<div");
             if (primeiroDiv != -1) {
                 int fimPrimeiro = atual.indexOf("</div>", primeiroDiv);
                 if (fimPrimeiro != -1) {
                     historicoHtml = new StringBuilder(atual.substring(0, primeiroDiv) + atual.substring(fimPrimeiro + 6));
-                    contadorMensagens--;
+                    contador--;
                 }
             }
         }
         historicoHtml.append(linhaHtml);
-        contadorMensagens++;
+        contadoresCanais.put(canalAtual, contador + 1);
         atualizarWebView();
     }
 
@@ -349,23 +368,36 @@ public class Cliente extends Application {
 
                 String linha;
                 while ((linha = in.readLine()) != null) {
-                    if (linha.startsWith("LISTA|")) {
+                    if (linha.startsWith("CANAIS|")) {
+                        String[] nomes = linha.substring(7).split(",");
+                        Platform.runLater(() -> {
+                            comboCanais.setOnAction(null);
+                            comboCanais.getItems().clear();
+                            for (String n : nomes) {
+                                if (!n.isEmpty()) {
+                                    comboCanais.getItems().add(n);
+                                }
+                            }
+                            comboCanais.setValue(canalAtual);
+                            comboCanais.setOnAction(e -> mudarCanalSelecionado());
+                        });
+                    } else if (linha.startsWith("LISTA|")) {
                         String[] nomes = linha.substring(6).split(",");
                         Platform.runLater(() -> {
                             torresOnline.clear();
                             for (String n : nomes) if (!n.isEmpty())
-                                torresOnline.add("⛰️ " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
+                                torresOnline.add("🟢 " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
                         });
                     } else if (linha.startsWith("ENTROU|")) {
                         String n = linha.substring(7);
                         Platform.runLater(() -> {
-                            if (!torresOnline.contains("⛰️ " + n)) torresOnline.add("⛰️ " + n);
+                            if (!torresOnline.contains("🟢 " + n)) torresOnline.add("🟢 " + n);
                             adicionarMensagemAoChat("SISTEMA", n + " entrou na frequência.");
                         });
                     } else if (linha.startsWith("SAIU|")) {
                         String n = linha.substring(5);
                         Platform.runLater(() -> {
-                            torresOnline.remove("⛰️ " + n);
+                            torresOnline.remove("🟢 " + n);
                             adicionarMensagemAoChat("SISTEMA", n + " saiu da frequência.");
                         });
                     } else {
@@ -377,6 +409,36 @@ public class Cliente extends Application {
                 Platform.runLater(() -> adicionarMensagemAoChat("ERRO", "Conexão perdida com a central."));
             }
         }).start();
+    }
+
+    private void mudarCanalSelecionado() {
+        String selecionado = comboCanais.getValue();
+        if (selecionado != null && !selecionado.equals(canalAtual)) {
+            historicosCanais.put(canalAtual, historicoHtml);
+            canalAtual = selecionado;
+            if (out != null) {
+                out.println("MUDAR_CANAL|" + canalAtual);
+            }
+            historicoHtml = historicosCanais.get(canalAtual);
+            if (historicoHtml == null) {
+                iniciarHistorico();
+            } else {
+                atualizarWebView();
+            }
+        }
+    }
+
+    private void criarNovoCanal() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("NOVO CANAL");
+        dialog.setHeaderText("CRIAR FREQUÊNCIA");
+        dialog.setContentText("NOME DO CANAL:");
+        dialog.showAndWait().ifPresent(nome -> {
+            String formatado = nome.trim();
+            if (!formatado.isEmpty() && out != null) {
+                out.println("CRIAR_CANAL|" + formatado);
+            }
+        });
     }
 
     private void enviarMensagem() {

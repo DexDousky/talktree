@@ -2,13 +2,13 @@
     -fx-background-color: #121218;
 }
 
-.sidebar {
+.barra-lateral {
     -fx-background-color: #181820;
     -fx-border-color: #282832;
     -fx-border-width: 0 1 0 0;
 }
 
-.titulo-sidebar {
+.titulo-barra-lateral {
     -fx-text-fill: #FF6E00;
     -fx-font-family: "Monospaced";
     -fx-font-weight: bold;
@@ -31,7 +31,7 @@
     -fx-text-fill: white;
 }
 
-.chat-header {
+.cabecalho-chat {
     -fx-background-color: #16161E;
     -fx-border-color: #282832;
     -fx-border-width: 0 0 1 0;
@@ -90,5 +90,40 @@
 }
 
 .botao-refresh:hover {
+    -fx-background-color: #3C3C4B;
+}
+
+.combo-box {
+    -fx-background-color: #282835;
+    -fx-text-fill: white;
+    -fx-border-color: #3C3C4B;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+}
+
+.combo-box .label {
+    -fx-text-fill: #00FF96;
+    -fx-font-family: "Monospaced";
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: #1E1E28;
+    -fx-text-fill: white;
+    -fx-font-family: "Monospaced";
+}
+
+.botao-criar-canal {
+    -fx-background-color: #282835;
+    -fx-text-fill: #00FF96;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+    -fx-padding: 5px 12px;
+}
+
+.botao-criar-canal:hover {
     -fx-background-color: #3C3C4B;
 }
