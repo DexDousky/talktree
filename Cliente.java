@@ -20,6 +20,8 @@ import java.util.Base64;
 import java.util.Date;
 
 public class Cliente extends Application {
+    private double xOffset = 0;
+    private double yOffset = 0;
     private WebView areaChat;
     private TextField campoMensagem;
     private ListView<String> listaTorres;
@@ -34,9 +36,9 @@ public class Cliente extends Application {
     private static final int MAX_HISTORICO = 200;
     private int contadorMensagens = 0;
     private static final String[] STICKERS = {
-        "...sei la", "2019", "L.", "L.K.", "amor", "anjo", "choro", "demonio",
-        "envergonhado", "flerte", "fome", "frisk", "nerd", "piscando", "raiva",
-        "rindo", "sono", "sorrindo", "sou foda", "triste"
+            "...sei la", "2019", "L.", "L.K.", "amor", "anjo", "choro", "demonio",
+            "envergonhado", "flerte", "fome", "frisk", "nerd", "piscando", "raiva",
+            "rindo", "sono", "sorrindo", "sou foda", "triste"
     };
 
     private File pastaTemp; // para salvar vídeos temporariamente
@@ -47,12 +49,16 @@ public class Cliente extends Application {
 
     @Override
     public void start(Stage palcoPrincipal) {
+        palcoPrincipal.initStyle(javafx.stage.StageStyle.UNDECORATED);
+
         // Cria pasta temporária para vídeos
         pastaTemp = new File(System.getProperty("java.io.tmpdir"), "talktree_videos");
-        if (!pastaTemp.exists()) pastaTemp.mkdirs();
+        if (!pastaTemp.exists())
+            pastaTemp.mkdirs();
 
         this.nomeUsuario = mostrarTelaLogin();
-        if (nomeUsuario == null) System.exit(0);
+        if (nomeUsuario == null)
+            System.exit(0);
 
         // --- SIDEBAR ---
         VBox sidebar = new VBox(20);
@@ -79,9 +85,21 @@ public class Cliente extends Application {
                     setGraphic(null);
                 } else {
                     setText(item.replace("🟢 ", ""));
-                    javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(4, javafx.scene.paint.Color.web("#55C595"));
+                    javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(4,
+                            javafx.scene.paint.Color.web("#55C595"));
                     setGraphic(dot);
                     setGraphicTextGap(10);
+                }
+            }
+        });
+        listaTorres.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) {
+                String selecionado = listaTorres.getSelectionModel().getSelectedItem();
+                if (selecionado != null) {
+                    String nomeOutro = selecionado.replace("🟢 ", "").replace(" [VOCÊ]", "").trim();
+                    if (!nomeOutro.equals(nomeUsuario)) {
+                        iniciarPvCom(nomeOutro);
+                    }
                 }
             }
         });
@@ -146,7 +164,43 @@ public class Cliente extends Application {
         rodape.getChildren().addAll(campoMensagem, btnEmoji, btnAnexo, btnTransmitir);
         painelChat.getChildren().addAll(header, areaChat, rodape);
 
+        // --- BARRA DE TÍTULO SIMPLES ---
+        HBox barraTitulo = new HBox();
+        barraTitulo.getStyleClass().add("barra-titulo-customizada");
+        barraTitulo.setAlignment(Pos.CENTER_LEFT);
+        barraTitulo.setPrefHeight(35);
+        barraTitulo.setPadding(new Insets(0, 15, 0, 15));
+
+        Label labelTitulo = new Label("TALKTREE // " + nomeUsuario.toUpperCase());
+        labelTitulo.getStyleClass().add("titulo-app-customizado");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button btnMinimizar = new Button("—");
+        btnMinimizar.getStyleClass().add("botao-controle-janela");
+        btnMinimizar.setOnAction(e -> palcoPrincipal.setIconified(true));
+
+        Button btnFechar = new Button("✕");
+        btnFechar.getStyleClass().add("botao-controle-janela-fechar");
+        btnFechar.setOnAction(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
+
+        barraTitulo.getChildren().addAll(labelTitulo, spacer, btnMinimizar, btnFechar);
+
+        barraTitulo.setOnMousePressed(e -> {
+            xOffset = e.getSceneX();
+            yOffset = e.getSceneY();
+        });
+        barraTitulo.setOnMouseDragged(e -> {
+            palcoPrincipal.setX(e.getScreenX() - xOffset);
+            palcoPrincipal.setY(e.getScreenY() - yOffset);
+        });
+
         BorderPane raiz = new BorderPane();
+        raiz.setTop(barraTitulo);
         raiz.setLeft(sidebar);
         raiz.setCenter(painelChat);
 
@@ -172,7 +226,7 @@ public class Cliente extends Application {
             }
         }
 
-        palcoPrincipal.setTitle("TALKTREE // OPERACOES - " + nomeUsuario);
+        palcoPrincipal.setTitle("TALKTREE // " + nomeUsuario);
         palcoPrincipal.setScene(cena);
         palcoPrincipal.show();
 
@@ -185,14 +239,19 @@ public class Cliente extends Application {
     // ========== FECHAMENTO ==========
     @Override
     public void stop() {
-        if (out != null) out.close();
+        if (out != null)
+            out.close();
         try {
-            if (socket != null && !socket.isClosed()) socket.close();
-        } catch (IOException e) { e.printStackTrace(); }
+            if (socket != null && !socket.isClosed())
+                socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         // Limpa a pasta temporária
         if (pastaTemp != null && pastaTemp.exists()) {
             for (File f : pastaTemp.listFiles()) {
-                if (f.isFile()) f.delete();
+                if (f.isFile())
+                    f.delete();
             }
             pastaTemp.delete();
         }
@@ -203,11 +262,15 @@ public class Cliente extends Application {
     private void iniciarHistorico() {
         historicoHtml = new StringBuilder();
         historicoHtml.append("<html><head>");
-        historicoHtml.append("<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
+        historicoHtml.append(
+                "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
         historicoHtml.append("<style>");
-        historicoHtml.append("body { background-color: #0E0E12; background-image: url('").append(new File("rascunhos/sol.gif").toURI().toString()).append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
+        historicoHtml.append("body { background-color: #0E0E12; background-image: url('")
+                .append(new File("rascunhos/sol.gif").toURI().toString())
+                .append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
         historicoHtml.append("</style></head><body>");
-        historicoHtml.append("<div style='color:#555; font-size:11px; margin-bottom:15px;'>--- CONEXAO ESTABELECIDA // SINTONIZADO ---</div>");
+        historicoHtml.append(
+                "<div style='color:#555; font-size:11px; margin-bottom:15px;'>--- CONEXAO ESTABELECIDA // SINTONIZADO ---</div>");
         contadoresCanais.put(canalAtual, 0);
         atualizarWebView();
     }
@@ -220,7 +283,8 @@ public class Cliente extends Application {
             if (primeiroDiv != -1) {
                 int fimPrimeiro = atual.indexOf("</div>", primeiroDiv);
                 if (fimPrimeiro != -1) {
-                    historicoHtml = new StringBuilder(atual.substring(0, primeiroDiv) + atual.substring(fimPrimeiro + 6));
+                    historicoHtml = new StringBuilder(
+                            atual.substring(0, primeiroDiv) + atual.substring(fimPrimeiro + 6));
                     contador--;
                 }
             }
@@ -266,21 +330,116 @@ public class Cliente extends Application {
 
         if (nome.equals("SISTEMA") || nome.equals("ERRO")) {
             String linhaHtml = String.format(
-                "<div style='color:#555; font-size:11px; margin-top:10px; margin-bottom:10px;'>[%s] // %s</div>",
-                hora, texto
-            );
+                    "<div style='color:#555; font-size:11px; margin-top:10px; margin-bottom:10px;'>[%s] // %s</div>",
+                    hora, texto);
             adicionarLinhaHtml(linhaHtml);
             return;
         }
 
         String corNome = nome.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         String linhaHtml = String.format(
-            "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>" +
-            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span>" +
-            "</div>",
-            corNome, hora, corNome, nome, escaparHtml(texto)
-        );
+                "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
+                        +
+                        "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span>"
+                        +
+                        "</div>",
+                corNome, hora, corNome, nome, escaparHtml(texto));
         adicionarLinhaHtml(linhaHtml);
+    }
+
+    private void iniciarPvCom(String nomeOutro) {
+        String pvCanal = "PV:" + nomeOutro;
+        historicosCanais.put(canalAtual, historicoHtml);
+        canalAtual = pvCanal;
+        Platform.runLater(() -> {
+            comboCanais.setOnAction(null);
+            if (!comboCanais.getItems().contains(pvCanal)) {
+                comboCanais.getItems().add(pvCanal);
+            }
+            comboCanais.setValue(pvCanal);
+            comboCanais.setOnAction(e -> mudarCanalSelecionado());
+        });
+        historicoHtml = historicosCanais.get(pvCanal);
+        if (historicoHtml == null) {
+            iniciarHistoricoPv(nomeOutro);
+        } else {
+            atualizarWebView();
+        }
+    }
+
+    private void iniciarHistoricoPv(String nomeOutro) {
+        historicoHtml = new StringBuilder();
+        historicoHtml.append("<html><head>");
+        historicoHtml.append(
+                "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
+        historicoHtml.append("<style>");
+        historicoHtml.append("body { background-color: #0E0E12; background-image: url('")
+                .append(new File("rascunhos/sol.gif").toURI().toString())
+                .append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
+        historicoHtml.append("</style></head><body>");
+        historicoHtml.append(
+                "<div style='color:#E55934; font-size:11px; margin-bottom:15px; font-family:Monospaced;'>--- FREQUENCIA PRIVADA COM ")
+                .append(nomeOutro.toUpperCase()).append(" ---</div>");
+        contadoresCanais.put(canalAtual, 0);
+        atualizarWebView();
+    }
+
+    private void adicionarMensagemPvAoChat(String remetente, String dest, String texto) {
+        String outro = remetente.equals(nomeUsuario) ? dest : remetente;
+        String pvCanal = "PV:" + outro;
+        StringBuilder historicoPv = historicosCanais.get(pvCanal);
+        if (historicoPv == null) {
+            historicoPv = new StringBuilder();
+            historicoPv.append("<html><head>");
+            historicoPv.append(
+                    "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
+            historicoPv.append("<style>");
+            historicoPv.append("body { background-color: #0E0E12; background-image: url('")
+                    .append(new File("rascunhos/sol.gif").toURI().toString())
+                    .append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
+            historicoPv.append("</style></head><body>");
+            historicoPv.append(
+                    "<div style='color:#E55934; font-size:11px; margin-bottom:15px; font-family:Monospaced;'>--- FREQUENCIA PRIVADA COM ")
+                    .append(outro.toUpperCase()).append(" ---</div>");
+            historicosCanais.put(pvCanal, historicoPv);
+            contadoresCanais.put(pvCanal, 0);
+        }
+        String linhaHtml;
+        if (texto.startsWith("FILE|")) {
+            String[] partes = texto.split("\\|", 4);
+            String nomeArquivo = partes[1];
+            String tipo = partes[2];
+            String base64Data = partes[3];
+            linhaHtml = gerarHtmlAnexo(remetente, nomeArquivo, tipo, base64Data);
+        } else if (texto.startsWith("STICKER|")) {
+            String[] partes = texto.split("\\|", 3);
+            String nomeEmoji = partes[1];
+            String base64Data = partes[2];
+            linhaHtml = gerarHtmlSticker(remetente, nomeEmoji, base64Data);
+        } else {
+            String hora = formatter.format(new Date());
+            String corNome = remetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
+            linhaHtml = String.format(
+                    "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
+                            +
+                            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b> <span style='color:#eee;'>%s</span>"
+                            +
+                            "</div>",
+                    corNome, hora, corNome, remetente, escaparHtml(texto));
+        }
+        historicoPv.append(linhaHtml);
+        if (canalAtual.equals(pvCanal)) {
+            historicoHtml = historicoPv;
+            atualizarWebView();
+        } else {
+            Platform.runLater(() -> {
+                comboCanais.setOnAction(null);
+                if (!comboCanais.getItems().contains(pvCanal)) {
+                    comboCanais.getItems().add(pvCanal);
+                }
+                comboCanais.setOnAction(e -> mudarCanalSelecionado());
+            });
+        }
     }
 
     private String gerarHtmlAnexo(String nomeRemetente, String nomeArquivo, String tipo, String base64Data) {
@@ -291,23 +450,24 @@ public class Cliente extends Application {
         if (tipo.equals("image")) {
             String extensao = "";
             int i = nomeArquivo.lastIndexOf('.');
-            if (i > 0) extensao = nomeArquivo.substring(i + 1).toLowerCase();
+            if (i > 0)
+                extensao = nomeArquivo.substring(i + 1).toLowerCase();
             String mimeImg = extensao.equals("gif") ? "gif" : "png";
-            if (extensao.equals("jpg") || extensao.equals("jpeg")) mimeImg = "jpeg";
+            if (extensao.equals("jpg") || extensao.equals("jpeg"))
+                mimeImg = "jpeg";
             mediaHtml = String.format(
-                "<div><img src='data:image/%s;base64,%s' style='max-width:250px; max-height:200px; border-radius:6px; margin-top:5px;'/></div>",
-                mimeImg, base64Data
-            );
+                    "<div><img src='data:image/%s;base64,%s' style='max-width:250px; max-height:200px; border-radius:6px; margin-top:5px;'/></div>",
+                    mimeImg, base64Data);
         } else if (tipo.equals("video")) {
             String videoPath = salvarVideoTemp(nomeArquivo, base64Data);
             if (videoPath != null) {
                 String videoUrl = new File(videoPath).toURI().toString();
                 mediaHtml = String.format(
-                    "<div><video controls style='max-width:250px; max-height:200px; border-radius:6px; margin-top:5px;'>" +
-                    "<source src='%s' type='video/mp4'>" +
-                    "Seu navegador nao suporta video.</video></div>",
-                    videoUrl
-                );
+                        "<div><video controls style='max-width:250px; max-height:200px; border-radius:6px; margin-top:5px;'>"
+                                +
+                                "<source src='%s' type='video/mp4'>" +
+                                "Seu navegador nao suporta video.</video></div>",
+                        videoUrl);
             } else {
                 mediaHtml = "<div>[Erro ao carregar video]</div>";
             }
@@ -316,24 +476,26 @@ public class Cliente extends Application {
         }
 
         return String.format(
-            "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>" +
-            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s</b> enviou <i>%s</i><br/>" +
-            "%s" +
-            "</div>",
-            corNome, hora, corNome, nomeRemetente, nomeArquivo, mediaHtml
-        );
+                "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
+                        +
+                        "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s</b> enviou <i>%s</i><br/>"
+                        +
+                        "%s" +
+                        "</div>",
+                corNome, hora, corNome, nomeRemetente, nomeArquivo, mediaHtml);
     }
 
     private String gerarHtmlSticker(String nomeRemetente, String nomeEmoji, String base64Data) {
         String hora = formatter.format(new Date());
         String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         return String.format(
-            "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>" +
-            "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b><br/>" +
-            "<div><img src='data:image/png;base64,%s' style='width:90px; height:90px; border-radius:6px; margin-top:5px;' alt='%s'/></div>" +
-            "</div>",
-            corNome, hora, corNome, nomeRemetente, base64Data, nomeEmoji
-        );
+                "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
+                        +
+                        "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s:</b><br/>" +
+                        "<div><img src='data:image/png;base64,%s' style='width:90px; height:90px; border-radius:6px; margin-top:5px;' alt='%s'/></div>"
+                        +
+                        "</div>",
+                corNome, hora, corNome, nomeRemetente, base64Data, nomeEmoji);
     }
 
     private void enviarSticker(String nome, File arquivo) {
@@ -345,7 +507,12 @@ public class Cliente extends Application {
             String base64 = Base64.getEncoder().encodeToString(bytes);
             String mensagem = "STICKER|" + nome + "|" + base64;
             if (out != null) {
-                out.println(nomeUsuario + "|" + mensagem);
+                if (canalAtual.startsWith("PV:")) {
+                    String dest = canalAtual.substring(3);
+                    out.println(nomeUsuario + "|PV|" + dest + "|" + mensagem);
+                } else {
+                    out.println(nomeUsuario + "|" + mensagem);
+                }
             }
         } catch (IOException e) {
             mostrarAlerta("Erro", "Nao foi possivel ler o sticker.");
@@ -370,9 +537,9 @@ public class Cliente extends Application {
 
     private String escaparHtml(String texto) {
         return texto.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                    .replace("\"", "&quot;");
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 
     // ========== ENVIO DE ARQUIVO ==========
@@ -380,12 +547,12 @@ public class Cliente extends Application {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Selecionar arquivo (imagem, GIF ou vídeo)");
         fileChooser.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"),
-            new FileChooser.ExtensionFilter("Vídeos", "*.mp4", "*.avi", "*.mov"),
-            new FileChooser.ExtensionFilter("Todos os arquivos", "*.*")
-        );
+                new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"),
+                new FileChooser.ExtensionFilter("Vídeos", "*.mp4", "*.avi", "*.mov"),
+                new FileChooser.ExtensionFilter("Todos os arquivos", "*.*"));
         File arquivo = fileChooser.showOpenDialog(null);
-        if (arquivo == null) return;
+        if (arquivo == null)
+            return;
 
         if (arquivo.length() > 5 * 1024 * 1024) {
             mostrarAlerta("Arquivo muito grande", "Máximo permitido: 5 MB");
@@ -406,8 +573,13 @@ public class Cliente extends Application {
                 fis.read(bytes);
             }
             String base64 = Base64.getEncoder().encodeToString(bytes);
-            String mensagem = "FILE|" + nomeArquivo + "|" + tipo + "|" + base64;
-            out.println(nomeUsuario + "|" + mensagem);
+            String message = "FILE|" + nomeArquivo + "|" + tipo + "|" + base64;
+            if (canalAtual.startsWith("PV:")) {
+                String dest = canalAtual.substring(3);
+                out.println(nomeUsuario + "|PV|" + dest + "|" + message);
+            } else {
+                out.println(nomeUsuario + "|" + message);
+            }
         } catch (IOException e) {
             mostrarAlerta("Erro", "Não foi possível ler o arquivo.");
         }
@@ -419,14 +591,14 @@ public class Cliente extends Application {
         popup.initStyle(javafx.stage.StageStyle.UNDECORATED);
         popup.initOwner(campoMensagem.getScene().getWindow());
         popup.initModality(javafx.stage.Modality.NONE);
-        
+
         TilePane painelGrelha = new TilePane();
         painelGrelha.setPadding(new Insets(15));
         painelGrelha.setHgap(10);
         painelGrelha.setVgap(10);
         painelGrelha.setPrefColumns(5);
         painelGrelha.setStyle("-fx-background-color: #121218;");
-        
+
         for (String nome : STICKERS) {
             try {
                 File arquivo = new File("emojis/" + nome + ".png");
@@ -446,24 +618,26 @@ public class Cliente extends Application {
             } catch (Exception ex) {
             }
         }
-        
+
         ScrollPane scroll = new ScrollPane(painelGrelha);
         scroll.setFitToWidth(true);
         scroll.setPrefViewportHeight(320);
         scroll.setPrefViewportWidth(400);
         scroll.setStyle("-fx-background: #121218; -fx-border-color: transparent;");
-        
+
         HBox cabecalho = new HBox();
         cabecalho.setPadding(new Insets(10, 15, 5, 15));
         cabecalho.setAlignment(Pos.CENTER_LEFT);
         Label labelTitulo = new Label("EMOJIS");
-        labelTitulo.setStyle("-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-weight: bold; -fx-font-size: 12px;");
+        labelTitulo.setStyle(
+                "-fx-text-fill: #FF6E00; -fx-font-family: 'Monospaced'; -fx-font-weight: bold; -fx-font-size: 12px;");
         cabecalho.getChildren().add(labelTitulo);
-        
+
         VBox raizPopup = new VBox();
-        raizPopup.setStyle("-fx-background-color: #121218; -fx-border-color: #282835; -fx-border-width: 1; -fx-border-radius: 5px; -fx-background-radius: 5px;");
+        raizPopup.setStyle(
+                "-fx-background-color: #121218; -fx-border-color: #282835; -fx-border-width: 1; -fx-border-radius: 5px; -fx-background-radius: 5px;");
         raizPopup.getChildren().addAll(cabecalho, scroll);
-        
+
         Scene cenaPopup = new Scene(raizPopup);
         try {
             String cssUrl = getClass().getResource("estilo.css").toExternalForm();
@@ -479,7 +653,7 @@ public class Cliente extends Application {
         }
         popup.setScene(cenaPopup);
         popup.setResizable(false);
-        
+
         try {
             javafx.geometry.Point2D coord = btnEmoji.localToScreen(0, 0);
             if (coord != null) {
@@ -488,19 +662,20 @@ public class Cliente extends Application {
             }
         } catch (Exception ex) {
         }
-        
+
         popup.focusedProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal) {
                 popup.close();
             }
         });
-        
+
         popup.show();
     }
 
     // ========== REFRESH ==========
     private void solicitarRefresh() {
-        if (out != null) out.println("REFRESH");
+        if (out != null)
+            out.println("REFRESH");
     }
 
     // ========== CONEXÃO COM SERVIDOR ==========
@@ -532,13 +707,15 @@ public class Cliente extends Application {
                         String[] nomes = linha.substring(6).split(",");
                         Platform.runLater(() -> {
                             torresOnline.clear();
-                            for (String n : nomes) if (!n.isEmpty())
-                                torresOnline.add("🟢 " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
+                            for (String n : nomes)
+                                if (!n.isEmpty())
+                                    torresOnline.add("🟢 " + n + (n.equals(nomeUsuario) ? " [VOCÊ]" : ""));
                         });
                     } else if (linha.startsWith("ENTROU|")) {
                         String n = linha.substring(7);
                         Platform.runLater(() -> {
-                            if (!torresOnline.contains("🟢 " + n)) torresOnline.add("🟢 " + n);
+                            if (!torresOnline.contains("🟢 " + n))
+                                torresOnline.add("🟢 " + n);
                             adicionarMensagemAoChat("SISTEMA", n + " entrou na frequência.");
                         });
                     } else if (linha.startsWith("SAIU|")) {
@@ -549,7 +726,8 @@ public class Cliente extends Application {
                         });
                     } else {
                         String[] partes = linha.split("\\|", 2);
-                        if (partes.length == 2) adicionarMensagemAoChat(partes[0], partes[1]);
+                        if (partes.length == 2)
+                            adicionarMensagemAoChat(partes[0], partes[1]);
                     }
                 }
             } catch (Exception e) {
@@ -591,13 +769,18 @@ public class Cliente extends Application {
     private void enviarMensagem() {
         String msg = campoMensagem.getText().trim();
         if (!msg.isEmpty() && out != null) {
-            out.println(nomeUsuario + "|" + msg);
+            if (canalAtual.startsWith("PV:")) {
+                String dest = canalAtual.substring(3);
+                out.println(nomeUsuario + "|PV|" + dest + "|" + msg);
+            } else {
+                out.println(nomeUsuario + "|" + msg);
+            }
             campoMensagem.clear();
         }
     }
 
     // ta com base no css isso daq
-    
+
     private String mostrarTelaLogin() {
         Stage loginStage = new Stage();
         loginStage.setTitle("CONECTAR - TALKTREE");
@@ -610,8 +793,9 @@ public class Cliente extends Application {
         painel.setStyle("-fx-background-color: #0E0E12; -fx-border-color: #21212B; -fx-border-width: 1px;");
 
         Label titulo = new Label("TALKTREE");
-        titulo.setStyle("-fx-text-fill: #E55934; -fx-font-family: 'Outfit'; -fx-font-weight: bold; -fx-font-size: 24px;");
-        
+        titulo.setStyle(
+                "-fx-text-fill: #E55934; -fx-font-family: 'Outfit'; -fx-font-weight: bold; -fx-font-size: 24px;");
+
         Label subtitulo = new Label("INSIRA SEU NOME DE USUÁRIO:");
         subtitulo.setStyle("-fx-text-fill: #9898A6; -fx-font-family: 'Outfit'; -fx-font-size: 13px;");
 
@@ -620,12 +804,12 @@ public class Cliente extends Application {
         campoNome.getStyleClass().add("campo-mensagem");
         campoNome.setMaxWidth(300);
         campoNome.setPrefWidth(300);
-        
+
         Button btnEntrar = new Button("CONECTAR FREQUÊNCIA");
         btnEntrar.getStyleClass().add("botao-transmitir");
         btnEntrar.setPrefWidth(220);
         btnEntrar.setDefaultButton(true);
-        
+
         Label labelErro = new Label();
         labelErro.setStyle("-fx-text-fill: #E55934; -fx-font-family: 'Outfit'; -fx-font-size: 12px;");
 
@@ -638,7 +822,7 @@ public class Cliente extends Application {
                 loginStage.close();
             }
         };
-        
+
         btnEntrar.setOnAction(e -> acaoLogin.run());
         campoNome.setOnAction(e -> acaoLogin.run());
 
@@ -658,10 +842,10 @@ public class Cliente extends Application {
         } catch (Exception e) {
             // Caso não encontre o CSS, segue sem ele (funcionalidade normal)
         }
-        
+
         loginStage.setScene(cenaLogin);
         loginStage.showAndWait();
-        
+
         return campoNome.getText().trim().isEmpty() ? null : campoNome.getText().trim();
     }
 

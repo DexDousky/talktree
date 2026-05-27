@@ -145,6 +145,25 @@ public class Servidor {
                             textoRecebido = mensagem.substring(mensagem.indexOf("|") + 1);
                         }
 
+                        if (textoRecebido.startsWith("PV|")) {
+                            String[] partesPv = textoRecebido.split("\\|", 3);
+                            if (partesPv.length == 3) {
+                                String destinatario = partesPv[1];
+                                String msgPrivada = partesPv[2];
+                                String mensagemFinal = nomeTorre + "|PV|" + destinatario + "|" + msgPrivada;
+                                String logConsole = msgPrivada.startsWith("FILE|") || msgPrivada.startsWith("STICKER|") ? "[ARQUIVO/STICKER ANEXADO]" : msgPrivada;
+                                System.out.println(nomeTorre + " -> " + destinatario + " [PV]: " + logConsole);
+                                synchronized (clientes) {
+                                    for (Map.Entry<PrintWriter, String> entrada : clientes.entrySet()) {
+                                        if (entrada.getValue().equals(destinatario) || entrada.getValue().equals(nomeTorre)) {
+                                            entrada.getKey().println(mensagemFinal);
+                                        }
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+
                         LocalTime agora = LocalTime.now();
                         DateTimeFormatter formatador = DateTimeFormatter.ofPattern("HH:mm");
                         String horaFormatada = agora.format(formatador);

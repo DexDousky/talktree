@@ -3,6 +3,8 @@
 .root {
     -fx-background-color: #0E0E12;
     -fx-font-family: 'Outfit', sans-serif;
+    -fx-border-color: #21212B;
+    -fx-border-width: 1px;
 }
 
 .barra-lateral {
@@ -207,4 +209,39 @@
 .scroll-bar:vertical .decrement-arrow {
     -fx-shape: " ";
     -fx-padding: 0;
+}
+
+/* Barra de Título Customizada (Simplificada) */
+.barra-titulo-customizada {
+    -fx-background-color: #09090C;
+    -fx-border-color: #21212B;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.titulo-app-customizado {
+    -fx-text-fill: #E55934;
+    -fx-font-family: 'Outfit', sans-serif;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+}
+
+.botao-controle-janela, .botao-controle-janela-fechar {
+    -fx-background-color: transparent;
+    -fx-text-fill: #9898A6;
+    -fx-font-family: 'Outfit', sans-serif;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-pref-width: 28px;
+    -fx-pref-height: 28px;
+    -fx-cursor: hand;
+}
+
+.botao-controle-janela:hover {
+    -fx-background-color: #1A1A24;
+    -fx-text-fill: #E55934;
+}
+
+.botao-controle-janela-fechar:hover {
+    -fx-background-color: #E81123;
+    -fx-text-fill: #FFFFFF;
 }
