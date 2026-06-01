@@ -1,25 +1,35 @@
+/* =============================================
+   TALKTREE - ESTILOS PRINCIPAIS
+   Fonte: Outfit (Google Fonts) + JetBrains Mono
+   Paleta: fundo escuro (#0E0E12), laranja (#E55934) para destaque
+   ============================================= */
+
+/* Importa as fontes do Google */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;550;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
+/* ========== ESTILOS GLOBAIS (ROOT) ========== */
 .root {
-    -fx-background-color: #0E0E12;
+    -fx-background-color: #0E0E12;      /* fundo principal escuro */
     -fx-font-family: 'Outfit', sans-serif;
-    -fx-border-color: #21212B;
+    -fx-border-color: #21212B;          /* borda sutil ao redor da janela */
     -fx-border-width: 1px;
 }
 
+/* ========== BARRA LATERAL (LISTA DE USUÁRIOS) ========== */
 .barra-lateral {
-    -fx-background-color: #13131A;
+    -fx-background-color: #13131A;       /* um pouco mais claro que o fundo */
     -fx-border-color: #21212B;
-    -fx-border-width: 0 1px 0 0;
+    -fx-border-width: 0 1px 0 0;         /* borda apenas na direita */
 }
 
 .titulo-barra-lateral {
-    -fx-text-fill: #E55934;
+    -fx-text-fill: #E55934;              /* laranja */
     -fx-font-family: 'Outfit', sans-serif;
     -fx-font-weight: bold;
     -fx-font-size: 14px;
 }
 
+/* Lista de usuários online */
 .list-view {
     -fx-background-color: transparent;
 }
@@ -41,23 +51,26 @@
 .list-cell:filled:selected {
     -fx-background-color: #242433;
     -fx-text-fill: #FFFFFF;
-    -fx-border-color: rgba(229, 89, 52, 0.4);
+    -fx-border-color: rgba(229, 89, 52, 0.4); /* borda laranja semi-transparente à esquerda */
     -fx-border-width: 0 0 0 3px;
 }
 
+/* ========== CABEÇALHO DO CHAT ========== */
 .cabecalho-chat {
     -fx-background-color: #13131A;
     -fx-border-color: #21212B;
-    -fx-border-width: 0 0 1px 0;
+    -fx-border-width: 0 0 1px 0;         /* borda inferior */
 }
 
+/* ========== RODAPÉ (CAMPO + BOTÕES) ========== */
 .rodape {
     -fx-background-color: #13131A;
     -fx-border-color: #21212B;
-    -fx-border-width: 1px 0 0 0;
+    -fx-border-width: 1px 0 0 0;         /* borda superior */
     -fx-padding: 15px 20px;
 }
 
+/* ========== CAMPO DE TEXTO ========== */
 .campo-mensagem {
     -fx-background-color: #1A1A24;
     -fx-text-fill: #FFFFFF;
@@ -71,10 +84,11 @@
 }
 
 .campo-mensagem:focused {
-    -fx-border-color: #E55934;
+    -fx-border-color: #E55934;           /* borda laranja ao focar */
     -fx-background-color: #1E1E2C;
 }
 
+/* ========== BOTÃO PRINCIPAL (TRANSMITIR) ========== */
 .botao-transmitir {
     -fx-background-color: #E55934;
     -fx-text-fill: #FFFFFF;
@@ -85,9 +99,10 @@
 }
 
 .botao-transmitir:hover {
-    -fx-background-color: #F06A47;
+    -fx-background-color: #F06A47;       /* tom mais claro ao passar mouse */
 }
 
+/* ========== BOTÕES DE EMOJI, ANEXO E MICROFONE ========== */
 .botao-emoji, .botao-anexo {
     -fx-background-color: #1A1A24;
     -fx-text-fill: #9898A6;
@@ -104,6 +119,7 @@
     -fx-border-color: #E55934;
 }
 
+/* ========== BOTÃO REFRESH (SIDEBAR) ========== */
 .botao-refresh {
     -fx-background-color: #1A1A24;
     -fx-text-fill: #E55934;
@@ -120,6 +136,7 @@
     -fx-background-color: #242433;
 }
 
+/* ========== COMBOBOX (SELETOR DE CANAIS) ========== */
 .combo-box {
     -fx-background-color: #1A1A24;
     -fx-border-color: #2A2A38;
@@ -143,6 +160,7 @@
     -fx-text-fill: #FFFFFF;
 }
 
+/* ========== BOTÃO CRIAR CANAL (+) ========== */
 .botao-criar-canal {
     -fx-background-color: #1A1A24;
     -fx-text-fill: #E55934;
@@ -159,6 +177,7 @@
     -fx-background-color: #242433;
 }
 
+/* ========== STICKERS (FIGURINHAS) ========== */
 .botao-sticker {
     -fx-background-color: transparent;
     -fx-border-color: #22222E;
@@ -173,6 +192,7 @@
     -fx-border-color: #E55934;
 }
 
+/* ========== SCROLL PERSONALIZADO ========== */
 .scroll-pane {
     -fx-background-color: transparent;
 }
@@ -183,7 +203,7 @@
 
 .scroll-bar:vertical {
     -fx-background-color: transparent;
-    -fx-width: 6px;
+    -fx-width: 6px;          /* largura da barra vertical */
 }
 
 .scroll-bar:vertical .track {
@@ -199,6 +219,7 @@
     -fx-background-color: #E55934;
 }
 
+/* Remove as setas do scroll (deixa apenas a barra) */
 .scroll-bar:vertical .increment-button,
 .scroll-bar:vertical .decrement-button {
     -fx-background-color: transparent;
@@ -211,7 +232,7 @@
     -fx-padding: 0;
 }
 
-/* Barra de Título Customizada (Simplificada) */
+/* ========== BARRA DE TÍTULO PERSONALIZADA ========== */
 .barra-titulo-customizada {
     -fx-background-color: #09090C;
     -fx-border-color: #21212B;
@@ -225,6 +246,7 @@
     -fx-font-size: 11px;
 }
 
+/* Botões de minimizar e fechar na barra de título */
 .botao-controle-janela, .botao-controle-janela-fechar {
     -fx-background-color: transparent;
     -fx-text-fill: #9898A6;
@@ -242,10 +264,11 @@
 }
 
 .botao-controle-janela-fechar:hover {
-    -fx-background-color: #E81123;
+    -fx-background-color: #E81123;      /* vermelho para o fechar */
     -fx-text-fill: #FFFFFF;
 }
 
+/* ========== MICROFONE (MENSAGEM DE VOZ) ========== */
 .botao-microfone {
     -fx-background-color: #1A1A24;
     -fx-text-fill: #9898A6;
@@ -292,6 +315,7 @@
     -fx-font-size: 13px;
 }
 
+/* Botão cancelar do dialog */
 .botao-cancelar {
     -fx-background-color: #1A1A24;
     -fx-text-fill: #9898A6;
@@ -309,6 +333,7 @@
     -fx-text-fill: #FFFFFF;
 }
 
+/* Campo de texto dentro do dialog */
 .dialog-custom .campo-mensagem {
     -fx-pref-width: 250px;
 }

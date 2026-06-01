@@ -24,73 +24,94 @@ import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
 
-// Novos imports para áudio
+// Novos imports para captura de áudio
 import javax.sound.sampled.*;
 
+/**
+ * Cliente do chat TALKTREE.
+ * Interface gráfica JavaFX, conexão com servidor, envio de mensagens de texto,
+ * stickers, anexos (imagem/vídeo) e mensagens de voz.
+ */
 public class Cliente extends Application {
-    private double xOffset = 0;
-    private double yOffset = 0;
-    private WebView areaChat;
-    private TextField campoMensagem;
-    private ListView<String> listaTorres;
+
+    // ========== VARIÁVEIS DE CONTROLE DA INTERFACE ==========
+    private double xOffset = 0;          // para arrastar a janela (posição X)
+    private double yOffset = 0;          // para arrastar a janela (posição Y)
+
+    private WebView areaChat;            // componente que exibe o chat em HTML/CSS
+    private TextField campoMensagem;     // campo onde o usuário digita o texto
+    private ListView<String> listaTorres; // lista visual de usuários online
     private ObservableList<String> torresOnline = FXCollections.observableArrayList();
 
-    private PrintWriter out;
-    private Socket socket;
-    private String nomeUsuario;
-    private StringBuilder historicoHtml = new StringBuilder();
-    private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm");
+    // ========== COMUNICAÇÃO COM O SERVIDOR ==========
+    private PrintWriter out;              // envia mensagens ao servidor
+    private Socket socket;               // conexão TCP com o servidor
+    private String nomeUsuario;          // nome do usuário logado
 
-    private static final int MAX_HISTORICO = 200;
-    private int contadorMensagens = 0;
+    // ========== HISTÓRICO DO CHAT ==========
+    private StringBuilder historicoHtml = new StringBuilder(); // histórico do canal atual
+    private SimpleDateFormat formatter = new SimpleDateFormat("HH:mm"); // formato da hora
+
+    private static final int MAX_HISTORICO = 200;     // máximo de mensagens por canal
+    private int contadorMensagens = 0;                // contador auxiliar (não usado, mas mantido)
+    
+    // Lista de nomes de stickers (figurinhas)
     private static final String[] STICKERS = {
             "...sei la", "2019", "L.", "L.K.", "amor", "anjo", "choro", "demonio",
             "envergonhado", "flerte", "fome", "frisk", "nerd", "piscando", "raiva",
             "rindo", "sono", "sorrindo", "sou foda", "triste"
     };
 
-    private File pastaTemp; // para salvar vídeos e áudios temporariamente
-    private ComboBox<String> comboCanais;
-    private String canalAtual = "Canal 1";
-    private java.util.Map<String, StringBuilder> historicosCanais = new java.util.HashMap<>();
-    private java.util.Map<String, Integer> contadoresCanais = new java.util.HashMap<>();
+    // ========== ARQUIVOS TEMPORÁRIOS (VÍDEOS, ÁUDIOS) ==========
+    private File pastaTemp; // diretório temporário para armazenar anexos recebidos
 
-    // Novos campos para gravação de voz
-    private Button btnMicrofone;
-    private boolean gravando = false;
-    private TargetDataLine linhaAudio;
-    private ByteArrayOutputStream audioBuffer;
-    private Timer timerGravacao;
-    private static final int MAX_GRAVACAO_SEGUNDOS = 30;
+    // ========== CANAIS (PÚBLICOS E PRIVADOS) ==========
+    private ComboBox<String> comboCanais;             // seletor de canais
+    private String canalAtual = "Canal 1";            // canal em que o usuário está
+    private java.util.Map<String, StringBuilder> historicosCanais = new java.util.HashMap<>(); // histórico por canal
+    private java.util.Map<String, Integer> contadoresCanais = new java.util.HashMap<>();       // contador por canal
 
+    // ========== GRAVAÇÃO DE VOZ ==========
+    private Button btnMicrofone;                      // botão para gravar voz
+    private boolean gravando = false;                 // indica se está gravando
+    private TargetDataLine linhaAudio;                // linha de captura de áudio
+    private ByteArrayOutputStream audioBuffer;        // buffer com os bytes do áudio
+    private Timer timerGravacao;                      // timer para limitar duração
+    private static final int MAX_GRAVACAO_SEGUNDOS = 30; // máximo de 30 segundos
+
+    // ================== MÉTODO PRINCIPAL (INÍCIO) ==================
     @Override
     public void start(Stage palcoPrincipal) {
+        // Remove a decoração padrão da janela (bordas, botões do sistema)
         palcoPrincipal.initStyle(javafx.stage.StageStyle.UNDECORATED);
 
-        // Cria pasta temporária para vídeos e áudios
+        // Cria a pasta temporária (dentro do tmp do sistema) para armazenar vídeos e áudios baixados
         pastaTemp = new File(System.getProperty("java.io.tmpdir"), "talktree_videos");
         if (!pastaTemp.exists())
             pastaTemp.mkdirs();
 
+        // Exibe a tela de login e obtém o nome do usuário
         this.nomeUsuario = mostrarTelaLogin();
         if (nomeUsuario == null)
-            System.exit(0);
+            System.exit(0); // se cancelou ou não digitou, encerra
 
-        // --- SIDEBAR ---
+        // ========== SIDEBAR (LISTA DE USUÁRIOS ONLINE) ==========
         VBox sidebar = new VBox(20);
         sidebar.getStyleClass().add("barra-lateral");
         sidebar.setPrefWidth(260);
         sidebar.setPadding(new Insets(20));
 
+        // Cabeçalho da sidebar: título e botão refresh
         HBox headerSidebar = new HBox(10);
         headerSidebar.setAlignment(Pos.CENTER_LEFT);
         Label tituloSidebar = new Label("SINAIS DE RADIO");
         tituloSidebar.getStyleClass().add("titulo-barra-lateral");
         Button btnRefresh = new Button("⟳");
         btnRefresh.getStyleClass().add("botao-refresh");
-        btnRefresh.setOnAction(e -> solicitarRefresh());
+        btnRefresh.setOnAction(e -> solicitarRefresh()); // atualiza a lista de usuários
         headerSidebar.getChildren().addAll(tituloSidebar, btnRefresh);
 
+        // ListView que mostra os usuários online com um círculo verde ao lado
         listaTorres = new ListView<>(torresOnline);
         listaTorres.setCellFactory(lv -> new ListCell<String>() {
             @Override
@@ -100,14 +121,15 @@ public class Cliente extends Application {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    setText(item.replace("🟢 ", ""));
+                    setText(item.replace("🟢 ", "")); // remove o ícone do texto
                     javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(4,
                             javafx.scene.paint.Color.web("#55C595"));
-                    setGraphic(dot);
+                    setGraphic(dot);              // adiciona o círculo como ícone
                     setGraphicTextGap(10);
                 }
             }
         });
+        // Duplo clique na lista inicia conversa privada com o usuário selecionado
         listaTorres.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
                 String selecionado = listaTorres.getSelectionModel().getSelectedItem();
@@ -122,8 +144,10 @@ public class Cliente extends Application {
         VBox.setVgrow(listaTorres, Priority.ALWAYS);
         sidebar.getChildren().addAll(headerSidebar, listaTorres);
 
-        // --- CHAT ---
+        // ========== PAINEL DO CHAT (CABEÇALHO + ÁREA DE MENSAGENS + RODAPÉ) ==========
         VBox painelChat = new VBox();
+        
+        // Cabeçalho com seletor de canais
         HBox header = new HBox(15);
         header.getStyleClass().add("cabecalho-chat");
         header.setPadding(new Insets(15, 20, 15, 20));
@@ -133,23 +157,24 @@ public class Cliente extends Application {
         labelCanal.setStyle("-fx-text-fill: #A0A0AA; -fx-font-family: 'Monospaced'; -fx-font-weight: bold;");
 
         comboCanais = new ComboBox<>();
-        comboCanais.getItems().addAll("Canal 1", "Canal 2");
+        comboCanais.getItems().addAll("Canal 1", "Canal 2"); // canais iniciais
         comboCanais.setValue("Canal 1");
         comboCanais.getStyleClass().add("combo-canais");
         comboCanais.setPrefWidth(200);
-        comboCanais.setOnAction(e -> mudarCanalSelecionado());
+        comboCanais.setOnAction(e -> mudarCanalSelecionado()); // troca de canal
 
         Button btnCriar = new Button("+");
         btnCriar.getStyleClass().add("botao-criar-canal");
-        btnCriar.setOnAction(e -> criarNovoCanal());
+        btnCriar.setOnAction(e -> criarNovoCanal()); // abre diálogo para criar novo canal
 
         header.getChildren().addAll(labelCanal, comboCanais, btnCriar);
 
+        // Área de chat: WebView que renderiza HTML
         areaChat = new WebView();
         VBox.setVgrow(areaChat, Priority.ALWAYS);
-        iniciarHistorico();
+        iniciarHistorico(); // inicia o histórico do canal atual
 
-        // --- RODAPÉ ---
+        // ========== RODAPÉ (CAMPO DE MENSAGEM E BOTÕES) ==========
         HBox rodape = new HBox(10);
         rodape.getStyleClass().add("rodape");
         rodape.setAlignment(Pos.CENTER);
@@ -160,12 +185,14 @@ public class Cliente extends Application {
         campoMensagem.getStyleClass().add("campo-mensagem");
         HBox.setHgrow(campoMensagem, Priority.ALWAYS);
 
+        // Botão de emojis (stickers)
         Button btnEmoji = new Button("😀");
         btnEmoji.getStyleClass().add("botao-emoji");
         btnEmoji.setPrefWidth(50);
         btnEmoji.setPrefHeight(45);
         btnEmoji.setOnAction(e -> mostrarMenuEmoji(btnEmoji));
 
+        // Botão de anexo (imagem/vídeo)
         Button btnAnexo = new Button("📎");
         btnAnexo.getStyleClass().add("botao-anexo");
         btnAnexo.setPrefWidth(50);
@@ -177,8 +204,9 @@ public class Cliente extends Application {
         btnMicrofone.getStyleClass().add("botao-microfone");
         btnMicrofone.setPrefWidth(50);
         btnMicrofone.setPrefHeight(45);
-        configurarGravacaoVoz();
+        configurarGravacaoVoz(); // configura os eventos de pressionar/soltar
 
+        // Botão principal de enviar mensagem
         Button btnTransmitir = new Button("TRANSMITIR");
         btnTransmitir.getStyleClass().add("botao-transmitir");
         btnTransmitir.setPrefHeight(45);
@@ -187,7 +215,7 @@ public class Cliente extends Application {
         rodape.getChildren().addAll(campoMensagem, btnEmoji, btnAnexo, btnMicrofone, btnTransmitir);
         painelChat.getChildren().addAll(header, areaChat, rodape);
 
-        // --- BARRA DE TÍTULO SIMPLES ---
+        // ========== BARRA DE TÍTULO PERSONALIZADA (PERMITE ARRASTAR) ==========
         HBox barraTitulo = new HBox();
         barraTitulo.getStyleClass().add("barra-titulo-customizada");
         barraTitulo.setAlignment(Pos.CENTER_LEFT);
@@ -213,6 +241,7 @@ public class Cliente extends Application {
 
         barraTitulo.getChildren().addAll(labelTitulo, spacer, btnMinimizar, btnFechar);
 
+        // Eventos de mouse para arrastar a janela
         barraTitulo.setOnMousePressed(e -> {
             xOffset = e.getSceneX();
             yOffset = e.getSceneY();
@@ -222,6 +251,7 @@ public class Cliente extends Application {
             palcoPrincipal.setY(e.getScreenY() - yOffset);
         });
 
+        // Monta a cena principal
         BorderPane raiz = new BorderPane();
         raiz.setTop(barraTitulo);
         raiz.setLeft(sidebar);
@@ -229,7 +259,7 @@ public class Cliente extends Application {
 
         Scene cena = new Scene(raiz, 1100, 750);
 
-        // --- CARREGAMENTO DO CSS ---
+        // ========== CARREGAR O ARQUIVO CSS ==========
         try {
             String cssUrl = getClass().getResource("estilo.css").toExternalForm();
             cena.getStylesheets().add(cssUrl);
@@ -253,26 +283,36 @@ public class Cliente extends Application {
         palcoPrincipal.setScene(cena);
         palcoPrincipal.show();
 
+        // Conecta ao servidor (em thread separada)
         conectarServidor();
 
+        // Ações dos botões de enviar mensagem
         btnTransmitir.setOnAction(e -> enviarMensagem());
         campoMensagem.setOnAction(e -> enviarMensagem());
     }
 
-    // ========== GRAVAÇÃO DE VOZ ==========
+    // ========== MÉTODOS DE GRAVAÇÃO DE VOZ ==========
+    /**
+     * Configura os eventos de pressionar e soltar o botão do microfone.
+     */
     private void configurarGravacaoVoz() {
         btnMicrofone.setOnMousePressed(e -> iniciarGravacao());
         btnMicrofone.setOnMouseReleased(e -> pararGravacaoEEnviar());
     }
 
+    /**
+     * Inicia a captura de áudio do microfone.
+     * Configura o formato (16kHz, 16-bit, mono), abre a linha e começa a ler bytes.
+     * Um timer para automaticamente após 30 segundos.
+     */
     private void iniciarGravacao() {
         if (gravando) return;
         gravando = true;
-        // muda estilo do botão
+        // Feedback visual: botão fica vermelho
         btnMicrofone.setStyle("-fx-background-color: #E55934; -fx-text-fill: white;");
         btnMicrofone.setText("🔴 GRAVANDO...");
 
-        // Configura áudio: 16kHz, 16-bit, mono, signed, big-endian (padrão)
+        // Formato de áudio: 16000 Hz, 16 bits, 1 canal (mono), signed, big-endian
         AudioFormat format = new AudioFormat(16000, 16, 1, true, true);
         DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
         try {
@@ -280,7 +320,7 @@ public class Cliente extends Application {
             linhaAudio.open(format);
             linhaAudio.start();
             audioBuffer = new ByteArrayOutputStream();
-            // Thread para ler dados da linha
+            // Thread separada para ler os dados do microfone
             new Thread(() -> {
                 byte[] buffer = new byte[4096];
                 while (linhaAudio.isOpen()) {
@@ -308,6 +348,9 @@ public class Cliente extends Application {
         }
     }
 
+    /**
+     * Para a gravação, codifica o áudio em Base64 e envia como mensagem "VOICE|...".
+     */
     private void pararGravacaoEEnviar() {
         if (!gravando) return;
         gravando = false;
@@ -326,7 +369,7 @@ public class Cliente extends Application {
             btnMicrofone.setText("🎙️");
             return;
         }
-        // Limite de tamanho: 5 MB (já que o servidor aceita até 5MB)
+        // Limite de tamanho de 5 MB
         if (audioBytes.length > 5 * 1024 * 1024) {
             mostrarAlerta("Áudio muito longo", "Máximo 5 MB (~30 segundos nessa qualidade).");
             btnMicrofone.setStyle("");
@@ -337,6 +380,7 @@ public class Cliente extends Application {
         String nomeArquivo = "voz_" + System.currentTimeMillis() + ".wav";
         String mensagem = "VOICE|" + nomeArquivo + "|" + base64Audio;
 
+        // Envia a mensagem (pode ser pública ou privada)
         if (canalAtual.startsWith("PV:")) {
             String dest = canalAtual.substring(3);
             out.println(nomeUsuario + "|PV|" + dest + "|" + mensagem);
@@ -348,7 +392,7 @@ public class Cliente extends Application {
         btnMicrofone.setText("🎙️");
     }
 
-    // ========== FECHAMENTO ==========
+    // ========== FECHAMENTO DO CLIENTE ==========
     @Override
     public void stop() {
         if (out != null)
@@ -359,7 +403,7 @@ public class Cliente extends Application {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        // Limpa a pasta temporária
+        // Limpa a pasta temporária ao sair
         if (pastaTemp != null && pastaTemp.exists()) {
             for (File f : pastaTemp.listFiles()) {
                 if (f.isFile())
@@ -370,7 +414,10 @@ public class Cliente extends Application {
         System.out.println("Cliente desconectado: " + nomeUsuario);
     }
 
-    // ========== HISTÓRICO ==========
+    // ========== HISTÓRICO DO CHAT (HTML) ==========
+    /**
+     * Inicializa o histórico do canal atual com o cabeçalho HTML e CSS.
+     */
     private void iniciarHistorico() {
         historicoHtml = new StringBuilder();
         historicoHtml.append("<html><head>");
@@ -387,6 +434,9 @@ public class Cliente extends Application {
         atualizarWebView();
     }
 
+    /**
+     * Adiciona uma linha HTML ao histórico do canal atual, mantendo o limite de MAX_HISTORICO.
+     */
     private void adicionarLinhaHtml(String linhaHtml) {
         int contador = contadoresCanais.getOrDefault(canalAtual, 0);
         if (contador >= MAX_HISTORICO) {
@@ -406,6 +456,9 @@ public class Cliente extends Application {
         atualizarWebView();
     }
 
+    /**
+     * Atualiza o WebView com o conteúdo HTML atual do canal.
+     */
     private void atualizarWebView() {
         Platform.runLater(() -> {
             String completo = historicoHtml.toString() + "</body></html>";
@@ -413,11 +466,15 @@ public class Cliente extends Application {
         });
     }
 
-    // ========== MENSAGENS ==========
+    // ========== EXIBIÇÃO DE MENSAGENS NO CHAT ==========
+    /**
+     * Adiciona uma mensagem ao chat (canal público ou sistema).
+     * Detecta automaticamente se é VOICE, FILE, STICKER ou texto normal.
+     */
     private void adicionarMensagemAoChat(String nome, String texto) {
         String hora = formatter.format(new Date());
 
-        // VOICE
+        // Mensagem de voz (VOICE)
         if (texto.startsWith("VOICE|")) {
             String[] partes = texto.split("\\|", 3);
             if (partes.length == 3) {
@@ -429,6 +486,7 @@ public class Cliente extends Application {
             }
         }
 
+        // Arquivo (imagem ou vídeo)
         if (texto.startsWith("FILE|")) {
             String[] partes = texto.split("\\|", 4);
             if (partes.length == 4 && partes[0].equals("FILE")) {
@@ -441,6 +499,7 @@ public class Cliente extends Application {
             }
         }
 
+        // Sticker (figurinha)
         if (texto.startsWith("STICKER|")) {
             String[] partes = texto.split("\\|", 3);
             if (partes.length == 3 && partes[0].equals("STICKER")) {
@@ -452,6 +511,7 @@ public class Cliente extends Application {
             }
         }
 
+        // Mensagens do sistema
         if (nome.equals("SISTEMA") || nome.equals("ERRO")) {
             String linhaHtml = String.format(
                     "<div style='color:#555; font-size:11px; margin-top:10px; margin-bottom:10px;'>[%s] // %s</div>",
@@ -460,6 +520,7 @@ public class Cliente extends Application {
             return;
         }
 
+        // Mensagem de texto comum
         String corNome = nome.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         String linhaHtml = String.format(
                 "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
@@ -471,8 +532,13 @@ public class Cliente extends Application {
         adicionarLinhaHtml(linhaHtml);
     }
 
+    /**
+     * Inicia uma conversa privada com outro usuário.
+     * Cria um canal virtual "PV:nome" e troca o histórico.
+     */
     private void iniciarPvCom(String nomeOutro) {
         String pvCanal = "PV:" + nomeOutro;
+        // Guarda o histórico do canal atual
         historicosCanais.put(canalAtual, historicoHtml);
         canalAtual = pvCanal;
         Platform.runLater(() -> {
@@ -491,6 +557,9 @@ public class Cliente extends Application {
         }
     }
 
+    /**
+     * Inicializa o histórico para um canal privado.
+     */
     private void iniciarHistoricoPv(String nomeOutro) {
         historicoHtml = new StringBuilder();
         historicoHtml.append("<html><head>");
@@ -508,6 +577,9 @@ public class Cliente extends Application {
         atualizarWebView();
     }
 
+    /**
+     * Adiciona mensagem ao chat privado (similar ao adicionarMensagemAoChat, mas para PV).
+     */
     private void adicionarMensagemPvAoChat(String remetente, String dest, String texto) {
         String outro = remetente.equals(nomeUsuario) ? dest : remetente;
         String pvCanal = "PV:" + outro;
@@ -564,10 +636,14 @@ public class Cliente extends Application {
         }
     }
 
+    // ========== MÉTODOS AUXILIARES PARA HTML ==========
+    /**
+     * Gera o código HTML para uma mensagem de voz com player de áudio.
+     */
     private String gerarHtmlAudio(String nomeRemetente, String nomeArquivo, String base64Audio) {
         String hora = formatter.format(new Date());
         String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
-        // Salva o áudio em arquivo temporário para evitar data URI muito grande (opcional)
+        // Tenta salvar o áudio em arquivo temporário (evita data URI muito grande)
         String audioPath = salvarAudioTemp(nomeArquivo, base64Audio);
         String playerHtml;
         if (audioPath != null) {
@@ -575,7 +651,7 @@ public class Cliente extends Application {
                     "<div><audio controls style='width:250px;' src='%s'></audio><br/><span style='font-size:11px;'>🎤 Mensagem de voz</span></div>",
                     new File(audioPath).toURI().toString());
         } else {
-            // fallback para data URI
+            // Fallback: data URI
             playerHtml = String.format(
                     "<div><audio controls style='width:250px;' src='data:audio/wav;base64,%s'></audio><br/><span style='font-size:11px;'>🎤 Mensagem de voz</span></div>",
                     base64Audio);
@@ -590,6 +666,9 @@ public class Cliente extends Application {
                 corNome, hora, corNome, nomeRemetente, playerHtml);
     }
 
+    /**
+     * Salva um arquivo temporário (áudio, vídeo) na pasta temporária.
+     */
     private String salvarAudioTemp(String nomeOriginal, String base64Data) {
         try {
             String nomeUnico = System.currentTimeMillis() + "_" + nomeOriginal;
@@ -606,12 +685,16 @@ public class Cliente extends Application {
         }
     }
 
+    /**
+     * Gera HTML para anexo (imagem ou vídeo).
+     */
     private String gerarHtmlAnexo(String nomeRemetente, String nomeArquivo, String tipo, String base64Data) {
         String hora = formatter.format(new Date());
         String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
         String mediaHtml = "";
 
         if (tipo.equals("image")) {
+            // Detecta extensão para definir o MIME correto
             String extensao = "";
             int i = nomeArquivo.lastIndexOf('.');
             if (i > 0)
@@ -649,6 +732,9 @@ public class Cliente extends Application {
                 corNome, hora, corNome, nomeRemetente, nomeArquivo, mediaHtml);
     }
 
+    /**
+     * Gera HTML para sticker (figurinha).
+     */
     private String gerarHtmlSticker(String nomeRemetente, String nomeEmoji, String base64Data) {
         String hora = formatter.format(new Date());
         String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
@@ -662,6 +748,9 @@ public class Cliente extends Application {
                 corNome, hora, corNome, nomeRemetente, base64Data, nomeEmoji);
     }
 
+    /**
+     * Envia um sticker (figurinha) selecionado.
+     */
     private void enviarSticker(String nome, File arquivo) {
         try {
             byte[] bytes = new byte[(int) arquivo.length()];
@@ -683,6 +772,9 @@ public class Cliente extends Application {
         }
     }
 
+    /**
+     * Salva vídeo temporário.
+     */
     private String salvarVideoTemp(String nomeOriginal, String base64Data) {
         try {
             String nomeUnico = System.currentTimeMillis() + "_" + nomeOriginal;
@@ -699,6 +791,9 @@ public class Cliente extends Application {
         }
     }
 
+    /**
+     * Escapa caracteres especiais HTML para evitar XSS e quebras de layout.
+     */
     private String escaparHtml(String texto) {
         return texto.replace("&", "&amp;")
                 .replace("<", "&lt;")
@@ -706,7 +801,10 @@ public class Cliente extends Application {
                 .replace("\"", "&quot;");
     }
 
-    // ========== ENVIO DE ARQUIVO ==========
+    // ========== ENVIO DE ARQUIVO (ANEXO) ==========
+    /**
+     * Abre um seletor de arquivos e envia o arquivo selecionado como anexo (imagem ou vídeo).
+     */
     private void enviarAnexo() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Selecionar arquivo (imagem, GIF ou vídeo)");
@@ -718,6 +816,7 @@ public class Cliente extends Application {
         if (arquivo == null)
             return;
 
+        // Limite de tamanho: 5 MB
         if (arquivo.length() > 5 * 1024 * 1024) {
             mostrarAlerta("Arquivo muito grande", "Máximo permitido: 5 MB");
             return;
@@ -748,7 +847,10 @@ public class Cliente extends Application {
         }
     }
 
-    // ========== EMOJIS ==========
+    // ========== MENU DE EMOJIS (STICKERS) ==========
+    /**
+     * Exibe um popup com todos os stickers disponíveis.
+     */
     private void mostrarMenuEmoji(Button btnEmoji) {
         Stage popup = new Stage();
         popup.initStyle(javafx.stage.StageStyle.UNDECORATED);
@@ -762,6 +864,7 @@ public class Cliente extends Application {
         painelGrelha.setPrefColumns(5);
         painelGrelha.setStyle("-fx-background-color: #121218;");
 
+        // Para cada sticker, tenta carregar a imagem da pasta assets/emojis/
         for (String nome : STICKERS) {
             try {
                 File arquivo = new File("assets/emojis/" + nome + ".png");
@@ -836,12 +939,19 @@ public class Cliente extends Application {
     }
 
     // ========== REFRESH ==========
+    /**
+     * Solicita ao servidor que reenvie a lista de usuários online.
+     */
     private void solicitarRefresh() {
         if (out != null)
             out.println("REFRESH");
     }
 
-    // ========== CONEXÃO COM SERVIDOR ==========
+    // ========== CONEXÃO COM O SERVIDOR ==========
+    /**
+     * Estabelece conexão com o servidor, envia o login e fica ouvindo mensagens.
+     * Tudo em uma thread separada para não travar a interface.
+     */
     private void conectarServidor() {
         new Thread(() -> {
             try {
@@ -854,6 +964,7 @@ public class Cliente extends Application {
                 String linha;
                 while ((linha = in.readLine()) != null) {
                     if (linha.startsWith("CANAIS|")) {
+                        // Atualiza a lista de canais no ComboBox
                         String[] nomes = linha.substring(7).split(",");
                         Platform.runLater(() -> {
                             comboCanais.setOnAction(null);
@@ -867,6 +978,7 @@ public class Cliente extends Application {
                             comboCanais.setOnAction(e -> mudarCanalSelecionado());
                         });
                     } else if (linha.startsWith("LISTA|")) {
+                        // Atualiza a lista de usuários online
                         String[] nomes = linha.substring(6).split(",");
                         Platform.runLater(() -> {
                             torresOnline.clear();
@@ -888,9 +1000,9 @@ public class Cliente extends Application {
                             adicionarMensagemAoChat("SISTEMA", n + " saiu da frequência.");
                         });
                     } else {
+                        // Mensagem normal ou privada
                         String[] partes = linha.split("\\|", 2);
                         if (partes.length == 2) {
-                            // Verifica se é mensagem privada
                             if (partes[1].startsWith("PV|")) {
                                 String[] pvParts = partes[1].split("\\|", 4);
                                 if (pvParts.length == 4 && pvParts[0].equals("PV")) {
@@ -911,6 +1023,10 @@ public class Cliente extends Application {
         }).start();
     }
 
+    // ========== TROCA DE CANAL ==========
+    /**
+     * Muda para o canal selecionado no ComboBox, salvando o histórico atual.
+     */
     private void mudarCanalSelecionado() {
         String selecionado = comboCanais.getValue();
         if (selecionado != null && !selecionado.equals(canalAtual)) {
@@ -928,78 +1044,86 @@ public class Cliente extends Application {
         }
     }
 
+    // ========== CRIAÇÃO DE NOVO CANAL (POPUP ESTILIZADO) ==========
+    /**
+     * Abre um diálogo personalizado para criar um novo canal.
+     */
     private void criarNovoCanal() {
-    // Cria um Dialog personalizado
-    Dialog<String> dialog = new Dialog<>();
-    dialog.setTitle("NOVO CANAL");
-    dialog.setHeaderText(null); // remove cabeçalho padrão
+        // Cria um Dialog personalizado
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("NOVO CANAL");
+        dialog.setHeaderText(null); // remove cabeçalho padrão
 
-    // Aplica o CSS da aplicação (reutiliza o mesmo arquivo)
-    DialogPane dialogPane = dialog.getDialogPane();
-    try {
-        String cssUrl = getClass().getResource("estilo.css").toExternalForm();
-        dialogPane.getStylesheets().add(cssUrl);
-    } catch (Exception e) {
-        File cssFile = new File("estilo.css");
-        if (cssFile.exists()) {
-            try {
-                dialogPane.getStylesheets().add(cssFile.toURI().toURL().toExternalForm());
-            } catch (Exception ex) { }
+        // Aplica o CSS da aplicação (reutiliza o mesmo arquivo)
+        DialogPane dialogPane = dialog.getDialogPane();
+        try {
+            String cssUrl = getClass().getResource("estilo.css").toExternalForm();
+            dialogPane.getStylesheets().add(cssUrl);
+        } catch (Exception e) {
+            File cssFile = new File("estilo.css");
+            if (cssFile.exists()) {
+                try {
+                    dialogPane.getStylesheets().add(cssFile.toURI().toURL().toExternalForm());
+                } catch (Exception ex) { }
+            }
         }
+        dialogPane.getStyleClass().add("dialog-custom");
+
+        // Campo de texto
+        TextField inputField = new TextField();
+        inputField.setPromptText("EX: TECNOLOGIA");
+        inputField.getStyleClass().add("campo-mensagem");
+
+        // Labels e layout
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.CENTER);
+        Label label = new Label("CRIAR FREQUÊNCIA");
+        label.getStyleClass().add("dialog-titulo");
+        Label sublabel = new Label("Digite o nome do novo canal:");
+        sublabel.getStyleClass().add("dialog-subtitulo");
+
+        content.getChildren().addAll(label, sublabel, inputField);
+        dialogPane.setContent(content);
+
+        // Botões
+        ButtonType criarButtonType = new ButtonType("CRIAR", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelarButtonType = new ButtonType("CANCELAR", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialogPane.getButtonTypes().addAll(criarButtonType, cancelarButtonType);
+
+        // Estiliza os botões
+        Node criarButton = dialogPane.lookupButton(criarButtonType);
+        Node cancelarButton = dialogPane.lookupButton(cancelarButtonType);
+        criarButton.getStyleClass().add("botao-transmitir");
+        cancelarButton.getStyleClass().add("botao-cancelar");
+
+        // Habilita o botão "CRIAR" apenas quando o campo não estiver vazio
+        final Button btCriar = (Button) criarButton;
+        inputField.textProperty().addListener((obs, old, novo) -> 
+            btCriar.setDisable(novo.trim().isEmpty())
+        );
+        btCriar.setDisable(true);
+
+        // Resultado
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == criarButtonType) {
+                return inputField.getText().trim();
+            }
+            return null;
+        });
+
+        // Mostra e processa
+        dialog.showAndWait().ifPresent(nome -> {
+            if (!nome.isEmpty() && out != null) {
+                out.println("CRIAR_CANAL|" + nome);
+            }
+        });
     }
-    dialogPane.getStyleClass().add("dialog-custom");
 
-    // Campo de texto
-    TextField inputField = new TextField();
-    inputField.setPromptText("EX: TECNOLOGIA");
-    inputField.getStyleClass().add("campo-mensagem");
-
-    // Labels e layout
-    VBox content = new VBox(15);
-    content.setPadding(new Insets(20));
-    content.setAlignment(Pos.CENTER);
-    Label label = new Label("CRIAR FREQUÊNCIA");
-    label.getStyleClass().add("dialog-titulo");
-    Label sublabel = new Label("Digite o nome do novo canal:");
-    sublabel.getStyleClass().add("dialog-subtitulo");
-
-    content.getChildren().addAll(label, sublabel, inputField);
-    dialogPane.setContent(content);
-
-    // Botões
-    ButtonType criarButtonType = new ButtonType("CRIAR", ButtonBar.ButtonData.OK_DONE);
-    ButtonType cancelarButtonType = new ButtonType("CANCELAR", ButtonBar.ButtonData.CANCEL_CLOSE);
-    dialogPane.getButtonTypes().addAll(criarButtonType, cancelarButtonType);
-
-    // Estiliza os botões
-    Node criarButton = dialogPane.lookupButton(criarButtonType);
-    Node cancelarButton = dialogPane.lookupButton(cancelarButtonType);
-    criarButton.getStyleClass().add("botao-transmitir");
-    cancelarButton.getStyleClass().add("botao-cancelar");
-
-    // Habilita o botão "CRIAR" apenas quando o campo não estiver vazio
-    final Button btCriar = (Button) criarButton;
-    inputField.textProperty().addListener((obs, old, novo) -> 
-        btCriar.setDisable(novo.trim().isEmpty())
-    );
-    btCriar.setDisable(true);
-
-    // Resultado
-    dialog.setResultConverter(dialogButton -> {
-        if (dialogButton == criarButtonType) {
-            return inputField.getText().trim();
-        }
-        return null;
-    });
-
-    // Mostra e processa
-    dialog.showAndWait().ifPresent(nome -> {
-        if (!nome.isEmpty() && out != null) {
-            out.println("CRIAR_CANAL|" + nome);
-        }
-    });
-}
-
+    // ========== ENVIO DE MENSAGEM DE TEXTO ==========
+    /**
+     * Envia a mensagem digitada (texto puro) para o servidor.
+     */
     private void enviarMensagem() {
         String msg = campoMensagem.getText().trim();
         if (!msg.isEmpty() && out != null) {
@@ -1013,6 +1137,11 @@ public class Cliente extends Application {
         }
     }
 
+    // ========== TELA DE LOGIN ==========
+    /**
+     * Exibe uma janela modal para o usuário digitar seu nome.
+     * @return nome do usuário ou null se cancelado.
+     */
     private String mostrarTelaLogin() {
         Stage loginStage = new Stage();
         loginStage.setTitle("CONECTAR - TALKTREE");
@@ -1077,6 +1206,9 @@ public class Cliente extends Application {
         return campoNome.getText().trim().isEmpty() ? null : campoNome.getText().trim();
     }
 
+    /**
+     * Exibe um alerta simples (popup) para o usuário.
+     */
     private void mostrarAlerta(String titulo, String conteudo) {
         Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -1087,6 +1219,7 @@ public class Cliente extends Application {
         });
     }
 
+    // ========== MAIN ==========
     public static void main(String[] args) {
         launch(args);
     }
