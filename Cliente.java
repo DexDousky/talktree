@@ -266,7 +266,7 @@ public class Cliente extends Application {
                 "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
         historicoHtml.append("<style>");
         historicoHtml.append("body { background-color: #0E0E12; background-image: url('")
-                .append(new File("rascunhos/sol.gif").toURI().toString())
+                .append(new File("assets/sol.png").toURI().toString())
                 .append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
         historicoHtml.append("</style></head><body>");
         historicoHtml.append(
@@ -601,7 +601,7 @@ public class Cliente extends Application {
 
         for (String nome : STICKERS) {
             try {
-                File arquivo = new File("emojis/" + nome + ".png");
+                File arquivo = new File("assets/emojis/" + nome + ".png");
                 if (arquivo.exists()) {
                     Image img = new Image(arquivo.toURI().toString(), 60, 60, true, true);
                     ImageView imgView = new ImageView(img);
