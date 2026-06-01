@@ -91,14 +91,12 @@ public class Servidor {
 
                     StringBuilder lista = new StringBuilder("LISTA|");
                     for (PrintWriter escritor : clientes.keySet()) {
-                        if (canais.get(escritor).equals("Canal 1")) {
-                            lista.append(clientes.get(escritor)).append(",");
-                        }
+                        lista.append(clientes.get(escritor)).append(",");
                     }
                     out.println(lista.toString());
 
                     for (PrintWriter escritor : clientes.keySet()) {
-                        if (escritor != out && canais.get(escritor).equals("Canal 1")) {
+                        if (escritor != out) {
                             escritor.println("ENTROU|" + nomeTorre);
                         }
                     }
@@ -129,37 +127,18 @@ public class Servidor {
                         String novoCanal = mensagem.substring(12);
                         String canalAntigo = canais.get(out);
 
+                        if (novoCanal.equals(canalAntigo)) {
+                            continue;
+                        }
+
                         synchronized (clientes) {
-                            for (PrintWriter escritor : clientes.keySet()) {
-                                if (escritor != out && canais.get(escritor).equals(canalAntigo)) {
-                                    escritor.println("SAIU|" + nomeTorre);
-                                }
-                            }
-
                             canais.put(out, novoCanal);
-
-                            for (PrintWriter escritor : clientes.keySet()) {
-                                if (escritor != out && canais.get(escritor).equals(novoCanal)) {
-                                    escritor.println("ENTROU|" + nomeTorre);
-                                }
-                            }
-
-                            StringBuilder lista = new StringBuilder("LISTA|");
-                            for (PrintWriter escritor : clientes.keySet()) {
-                                if (canais.get(escritor).equals(novoCanal)) {
-                                    lista.append(clientes.get(escritor)).append(",");
-                                }
-                            }
-                            out.println(lista.toString());
                         }
                     } else if (mensagem.equals("REFRESH") || mensagem.equals("ATUALIZAR")) {
-                        String canalDoCliente = canais.get(out);
                         StringBuilder lista = new StringBuilder("LISTA|");
                         synchronized (clientes) {
                             for (PrintWriter escritor : clientes.keySet()) {
-                                if (canais.get(escritor).equals(canalDoCliente)) {
-                                    lista.append(clientes.get(escritor)).append(",");
-                                }
+                                lista.append(clientes.get(escritor)).append(",");
                             }
                         }
                         out.println(lista.toString());
@@ -228,4 +207,7 @@ public class Servidor {
             }
         }
     }
-}
+}clientes.remove(out);
+                        canais.remove(out);
+                        for (PrintWriter escritor : clientes.keySet()) {
+                            escritor.println("SAIU|" + nomeTorre);

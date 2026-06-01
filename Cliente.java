@@ -142,7 +142,7 @@ public class Cliente extends Application {
         });
         // Duplo clique na lista inicia conversa privada com o usuário selecionado
         listaTorres.setOnMouseClicked(e -> {
-            if (e.getClickCount() == 2) {
+            if (e.getClickCount() == 1) {
                 String selecionado = listaTorres.getSelectionModel().getSelectedItem();
                 if (selecionado != null) {
                     String nomeOutro = selecionado.replace("🟢 ", "").replace(" [VOCÊ]", "").trim();
@@ -460,6 +460,7 @@ public class Cliente extends Application {
         historicoHtml.append("</style></head><body>");
         historicoHtml.append(
                 "<div style='color:#555; font-size:11px; margin-bottom:15px;'>--- CONEXAO ESTABELECIDA // SINTONIZADO ---</div>");
+        historicosCanais.put(canalAtual, historicoHtml);
         contadoresCanais.put(canalAtual, 0);
         atualizarWebView();
     }
@@ -568,17 +569,23 @@ public class Cliente extends Application {
      */
     private void iniciarPvCom(String nomeOutro) {
         String pvCanal = "PV:" + nomeOutro;
-        // Guarda o histórico do canal atual
         historicosCanais.put(canalAtual, historicoHtml);
         canalAtual = pvCanal;
+        
         Platform.runLater(() -> {
+            // Desativa o evento temporariamente para não avisar o servidor
+            var oldAction = comboCanais.getOnAction();
             comboCanais.setOnAction(null);
+            
             if (!comboCanais.getItems().contains(pvCanal)) {
                 comboCanais.getItems().add(pvCanal);
             }
             comboCanais.setValue(pvCanal);
-            comboCanais.setOnAction(e -> mudarCanalSelecionado());
+            
+            // Restaura o evento
+            comboCanais.setOnAction(oldAction);
         });
+
         historicoHtml = historicosCanais.get(pvCanal);
         if (historicoHtml == null) {
             iniciarHistoricoPv(nomeOutro);
@@ -597,12 +604,13 @@ public class Cliente extends Application {
                 "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
         historicoHtml.append("<style>");
         historicoHtml.append("body { background-color: #0E0E12; background-image: url('")
-                .append(new File("rascunhos/sol.gif").toURI().toString())
+                .append(new File("assets/sol.png").toURI().toString())
                 .append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
         historicoHtml.append("</style></head><body>");
         historicoHtml.append(
                 "<div style='color:#E55934; font-size:11px; margin-bottom:15px; font-family:Monospaced;'>--- FREQUENCIA PRIVADA COM ")
                 .append(nomeOutro.toUpperCase()).append(" ---</div>");
+        historicosCanais.put(canalAtual, historicoHtml);
         contadoresCanais.put(canalAtual, 0);
         atualizarWebView();
     }
@@ -621,7 +629,7 @@ public class Cliente extends Application {
                     "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>");
             historicoPv.append("<style>");
             historicoPv.append("body { background-color: #0E0E12; background-image: url('")
-                    .append(new File("rascunhos/sol.gif").toURI().toString())
+                    .append(new File("assets/sol.png").toURI().toString())
                     .append("'); background-repeat: no-repeat; background-position: center; background-size: cover; background-attachment: fixed; color: #DCDCDC; font-family: 'Outfit', sans-serif; margin: 15px; font-size: 14px; }");
             historicoPv.append("</style></head><body>");
             historicoPv.append(
@@ -655,14 +663,6 @@ public class Cliente extends Application {
         if (canalAtual.equals(pvCanal)) {
             historicoHtml = historicoPv;
             atualizarWebView();
-        } else {
-            Platform.runLater(() -> {
-                comboCanais.setOnAction(null);
-                if (!comboCanais.getItems().contains(pvCanal)) {
-                    comboCanais.getItems().add(pvCanal);
-                }
-                comboCanais.setOnAction(e -> mudarCanalSelecionado());
-            });
         }
     }
 
@@ -1021,28 +1021,37 @@ public class Cliente extends Application {
                         Platform.runLater(() -> {
                             if (!torresOnline.contains("🟢 " + n))
                                 torresOnline.add("🟢 " + n);
-                            adicionarMensagemAoChat("SISTEMA", n + " entrou na frequência.");
+                            // SÓ MOSTRA SE NÃO ESTIVER EM PV
+                            if (!canalAtual.startsWith("PV:")) {
+                                adicionarMensagemAoChat("SISTEMA", n + " entrou na frequência.");
+                            }
                         });
                     } else if (linha.startsWith("SAIU|")) {
                         String n = linha.substring(5);
                         Platform.runLater(() -> {
                             torresOnline.remove("🟢 " + n);
-                            adicionarMensagemAoChat("SISTEMA", n + " saiu da frequência.");
+                            // SÓ MOSTRA SE NÃO ESTIVER EM PV
+                            if (!canalAtual.startsWith("PV:")) {
+                                adicionarMensagemAoChat("SISTEMA", n + " saiu da frequência.");
+                            }
                         });
                     } else {
                         // Mensagem normal ou privada
                         String[] partes = linha.split("\\|", 2);
                         if (partes.length == 2) {
                             if (partes[1].startsWith("PV|")) {
-                                String[] pvParts = partes[1].split("\\|", 4);
-                                if (pvParts.length == 4 && pvParts[0].equals("PV")) {
+                                String[] pvParts = partes[1].split("\\|", 3);
+                                if (pvParts.length == 3 && pvParts[0].equals("PV")) {
                                     String remetente = partes[0];
                                     String destinatario = pvParts[1];
-                                    String msgConteudo = pvParts[3];
+                                    String msgConteudo = pvParts[2];
                                     adicionarMensagemPvAoChat(remetente, destinatario, msgConteudo);
                                 }
                             } else {
-                                adicionarMensagemAoChat(partes[0], partes[1]);
+                                // SÓ MOSTRA SE NÃO ESTIVER EM PV
+                                if (!canalAtual.startsWith("PV:")) {
+                                    adicionarMensagemAoChat(partes[0], partes[1]);
+                                }
                             }
                         }
                     }
@@ -1062,9 +1071,12 @@ public class Cliente extends Application {
         if (selecionado != null && !selecionado.equals(canalAtual)) {
             historicosCanais.put(canalAtual, historicoHtml);
             canalAtual = selecionado;
-            if (out != null) {
+            
+            // Só avisa o servidor se NÃO for PV
+            if (out != null && !canalAtual.startsWith("PV:")) {
                 out.println("MUDAR_CANAL|" + canalAtual);
             }
+            
             historicoHtml = historicosCanais.get(canalAtual);
             if (historicoHtml == null) {
                 iniciarHistorico();
