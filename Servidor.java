@@ -126,11 +126,9 @@ public class Servidor {
                     } else if (mensagem.startsWith("MUDAR_CANAL|")) {
                         String novoCanal = mensagem.substring(12);
                         String canalAntigo = canais.get(out);
-
                         if (novoCanal.equals(canalAntigo)) {
                             continue;
                         }
-
                         synchronized (clientes) {
                             canais.put(out, novoCanal);
                         }
@@ -178,9 +176,12 @@ public class Servidor {
 
                         synchronized (clientes) {
                             String canalRemetente = canais.get(out);
-                            for (PrintWriter escritor : clientes.keySet()) {
-                                if (canais.get(escritor).equals(canalRemetente)) {
-                                    escritor.println(mensagemFinal);
+                            if (canalRemetente != null) {
+                                for (PrintWriter escritor : clientes.keySet()) {
+                                    String canalDestino = canais.get(escritor);
+                                    if (canalDestino != null && canalDestino.equals(canalRemetente)) {
+                                        escritor.println(mensagemFinal);
+                                    }
                                 }
                             }
                         }
@@ -193,9 +194,12 @@ public class Servidor {
                     synchronized (clientes) {
                         String canalAntigo = canais.remove(out);
                         clientes.remove(out);
-                        for (PrintWriter escritor : clientes.keySet()) {
-                            if (canais.get(escritor).equals(canalAntigo)) {
-                                escritor.println("SAIU|" + nomeTorre);
+                        if (canalAntigo != null) {
+                            for (PrintWriter escritor : clientes.keySet()) {
+                                String canalEscritor = canais.get(escritor);
+                                if (canalEscritor != null && canalEscritor.equals(canalAntigo)) {
+                                    escritor.println("SAIU|" + nomeTorre);
+                                }
                             }
                         }
                     }
@@ -207,7 +211,4 @@ public class Servidor {
             }
         }
     }
-}clientes.remove(out);
-                        canais.remove(out);
-                        for (PrintWriter escritor : clientes.keySet()) {
-                            escritor.println("SAIU|" + nomeTorre);
+}

@@ -313,7 +313,7 @@ public class Cliente extends Application {
 
     /**
      * Inicia a captura de áudio do microfone.
-     * Configura o formato (16kHz, 16-bit, mono), abre a linha e começa a ler bytes.
+     * Configura o formato (16kHz, 16-bit, mono, little-endian), abre a linha e começa a ler bytes.
      * Um timer para automaticamente após 30 segundos.
      */
     private void iniciarGravacao() {
@@ -323,8 +323,8 @@ public class Cliente extends Application {
         btnMicrofone.setStyle("-fx-background-color: #E55934; -fx-text-fill: white;");
         btnMicrofone.setText("🔴 GRAVANDO...");
 
-        // Formato de áudio: 16000 Hz, 16 bits, 1 canal (mono), signed, big-endian
-        AudioFormat format = new AudioFormat(16000, 16, 1, true, true);
+        // Formato de áudio: 16000 Hz, 16 bits, 1 canal (mono), signed, little-endian (false)
+        AudioFormat format = new AudioFormat(16000, 16, 1, true, false);
         DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
         try {
             linhaAudio = (TargetDataLine) AudioSystem.getLine(info);
@@ -681,10 +681,13 @@ public class Cliente extends Application {
                     "<div><audio controls style='width:250px;' src='%s'></audio><br/><span style='font-size:11px;'>🎤 Mensagem de voz</span></div>",
                     new File(audioPath).toURI().toString());
         } else {
-            // Fallback: data URI
+            // Fallback: data URI com cabeçalho WAV
+            byte[] pcmData = Base64.getDecoder().decode(base64Audio);
+            byte[] wavData = createWavBytes(pcmData);
+            String base64Wav = Base64.getEncoder().encodeToString(wavData);
             playerHtml = String.format(
                     "<div><audio controls style='width:250px;' src='data:audio/wav;base64,%s'></audio><br/><span style='font-size:11px;'>🎤 Mensagem de voz</span></div>",
-                    base64Audio);
+                    base64Wav);
         }
         return String.format(
                 "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
@@ -701,12 +704,10 @@ public class Cliente extends Application {
      */
     private String salvarAudioTemp(String nomeOriginal, String base64Data) {
         try {
+            byte[] pcmData = Base64.getDecoder().decode(base64Data);
             String nomeUnico = System.currentTimeMillis() + "_" + nomeOriginal;
             File audioFile = new File(pastaTemp, nomeUnico);
-            byte[] dados = Base64.getDecoder().decode(base64Data);
-            try (FileOutputStream fos = new FileOutputStream(audioFile)) {
-                fos.write(dados);
-            }
+            writeWavFile(audioFile, pcmData);
             audioFile.deleteOnExit();
             return audioFile.getAbsolutePath();
         } catch (Exception e) {
@@ -1296,6 +1297,104 @@ public class Cliente extends Application {
             alert.setContentText(conteudo);
             alert.showAndWait();
         });
+    }
+
+    // ========== MÉTODOS PARA CRIAÇÃO DE ARQUIVOS WAV ==========
+    /**
+     * Cria um arquivo WAV válido a partir dos bytes PCM (16kHz, mono, 16 bits, little-endian).
+     */
+    private void writeWavFile(File file, byte[] pcmData) throws IOException {
+        int sampleRate = 16000;
+        short bitsPerSample = 16;
+        short channels = 1;
+        int dataSize = pcmData.length;
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
+        short blockAlign = (short) (channels * bitsPerSample / 8);
+
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             FileOutputStream fos = new FileOutputStream(file)) {
+            
+            // ChunkID "RIFF"
+            baos.write("RIFF".getBytes());
+            // ChunkSize = 36 + dataSize
+            baos.write(intToLittleEndian(36 + dataSize));
+            // Format "WAVE"
+            baos.write("WAVE".getBytes());
+            // Subchunk1ID "fmt "
+            baos.write("fmt ".getBytes());
+            // Subchunk1Size = 16 (PCM)
+            baos.write(intToLittleEndian(16));
+            // AudioFormat = 1 (PCM)
+            baos.write(shortToLittleEndian((short) 1));
+            // NumChannels
+            baos.write(shortToLittleEndian(channels));
+            // SampleRate
+            baos.write(intToLittleEndian(sampleRate));
+            // ByteRate
+            baos.write(intToLittleEndian(byteRate));
+            // BlockAlign
+            baos.write(shortToLittleEndian(blockAlign));
+            // BitsPerSample
+            baos.write(shortToLittleEndian(bitsPerSample));
+            // Subchunk2ID "data"
+            baos.write("data".getBytes());
+            // Subchunk2Size = dataSize
+            baos.write(intToLittleEndian(dataSize));
+            // Dados PCM
+            baos.write(pcmData);
+            
+            fos.write(baos.toByteArray());
+        }
+    }
+
+    /**
+     * Cria um array de bytes contendo um WAV completo a partir dos bytes PCM.
+     */
+    private byte[] createWavBytes(byte[] pcmData) {
+        int sampleRate = 16000;
+        short bitsPerSample = 16;
+        short channels = 1;
+        int dataSize = pcmData.length;
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
+        short blockAlign = (short) (channels * bitsPerSample / 8);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            baos.write("RIFF".getBytes());
+            baos.write(intToLittleEndian(36 + dataSize));
+            baos.write("WAVE".getBytes());
+            baos.write("fmt ".getBytes());
+            baos.write(intToLittleEndian(16));
+            baos.write(shortToLittleEndian((short) 1));
+            baos.write(shortToLittleEndian(channels));
+            baos.write(intToLittleEndian(sampleRate));
+            baos.write(intToLittleEndian(byteRate));
+            baos.write(shortToLittleEndian(blockAlign));
+            baos.write(shortToLittleEndian(bitsPerSample));
+            baos.write("data".getBytes());
+            baos.write(intToLittleEndian(dataSize));
+            baos.write(pcmData);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return pcmData; // fallback não ideal, mas evita crash
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] intToLittleEndian(int value) {
+        return new byte[]{
+            (byte) (value & 0xff),
+            (byte) ((value >> 8) & 0xff),
+            (byte) ((value >> 16) & 0xff),
+            (byte) ((value >> 24) & 0xff)
+        };
+    }
+
+    private byte[] shortToLittleEndian(short value) {
+        return new byte[]{
+            (byte) (value & 0xff),
+            (byte) ((value >> 8) & 0xff)
+        };
     }
 
     // ========== MAIN ==========
