@@ -1175,13 +1175,45 @@ public class Cliente extends Application {
     private String mostrarTelaLogin() {
         Stage loginStage = new Stage();
         loginStage.setTitle("CONECTAR - TALKTREE");
+        loginStage.initStyle(javafx.stage.StageStyle.UNDECORATED); // Remove a barra padrao
         loginStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
         loginStage.setResizable(false);
+
+        // ========== BARRA DE TÍTULO CUSTOMIZADA ==========
+        HBox barraTituloLogin = new HBox();
+        barraTituloLogin.getStyleClass().add("barra-titulo-customizada");
+        barraTituloLogin.setAlignment(Pos.CENTER_LEFT);
+        barraTituloLogin.setPadding(new Insets(5, 10, 5, 10));
+
+        Label labelTituloLogin = new Label("TALKTREE - LOGIN");
+        labelTituloLogin.getStyleClass().add("titulo-app-customizado");
+
+        Region spacerLogin = new Region();
+        HBox.setHgrow(spacerLogin, Priority.ALWAYS);
+
+        Button btnFecharLogin = new Button("✕");
+        btnFecharLogin.getStyleClass().add("botao-controle-janela-fechar");
+        btnFecharLogin.setOnAction(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
+
+        barraTituloLogin.getChildren().addAll(labelTituloLogin, spacerLogin, btnFecharLogin);
+
+        // Eventos de mouse para arrastar a janela de login
+        barraTituloLogin.setOnMousePressed(e -> {
+            xOffset = e.getSceneX();
+            yOffset = e.getSceneY();
+        });
+        barraTituloLogin.setOnMouseDragged(e -> {
+            loginStage.setX(e.getScreenX() - xOffset);
+            loginStage.setY(e.getScreenY() - yOffset);
+        });
 
         VBox painel = new VBox(20);
         painel.setAlignment(Pos.CENTER);
         painel.setPadding(new Insets(30));
-        painel.setStyle("-fx-background-color: #0E0E12; -fx-border-color: #21212B; -fx-border-width: 1px;");
+        painel.setStyle("-fx-background-color: #0E0E12; -fx-border-color: #21212B; -fx-border-width: 0 1px 1px 1px;");
 
         Label titulo = new Label("TALKTREE");
         titulo.setStyle(
@@ -1222,7 +1254,12 @@ public class Cliente extends Application {
         });
 
         painel.getChildren().addAll(titulo, subtitulo, campoNome, btnEntrar, labelErro);
-        Scene cenaLogin = new Scene(painel, 500, 350);
+        
+        BorderPane raizLogin = new BorderPane();
+        raizLogin.setTop(barraTituloLogin);
+        raizLogin.setCenter(painel);
+
+        Scene cenaLogin = new Scene(raizLogin, 500, 350);
 
         try {
             String cssUrl = getClass().getResource("estilo.css").toExternalForm();
