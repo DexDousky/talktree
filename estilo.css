@@ -261,3 +261,54 @@
     -fx-text-fill: #FFFFFF;
     -fx-border-color: #E55934;
 }
+
+/* ========== DIALOG PERSONALIZADO (CRIAR CANAL) ========== */
+.dialog-custom {
+    -fx-background-color: #13131A;
+    -fx-border-color: #E55934;
+    -fx-border-width: 2px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.dialog-custom .header-panel {
+    -fx-background-color: #0E0E12;
+}
+
+.dialog-custom .content.label {
+    -fx-text-fill: #DCDCDC;
+}
+
+.dialog-titulo {
+    -fx-text-fill: #E55934;
+    -fx-font-family: 'Outfit', sans-serif;
+    -fx-font-weight: bold;
+    -fx-font-size: 18px;
+}
+
+.dialog-subtitulo {
+    -fx-text-fill: #9898A6;
+    -fx-font-family: 'Outfit', sans-serif;
+    -fx-font-size: 13px;
+}
+
+.botao-cancelar {
+    -fx-background-color: #1A1A24;
+    -fx-text-fill: #9898A6;
+    -fx-font-family: 'Outfit', sans-serif;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+    -fx-border-color: #2A2A38;
+    -fx-border-radius: 6px;
+    -fx-padding: 8px 16px;
+}
+
+.botao-cancelar:hover {
+    -fx-background-color: #242433;
+    -fx-text-fill: #FFFFFF;
+}
+
+.dialog-custom .campo-mensagem {
+    -fx-pref-width: 250px;
+}

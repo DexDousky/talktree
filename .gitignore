@@ -1,2 +1,4 @@
 *.class
 *Cliente.class
+Cliente$1.class
+*.class

@@ -12,7 +12,10 @@ import javafx.stage.Stage;
 import javafx.stage.FileChooser;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-
+import javafx.scene.Node;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.DialogPane;
 import java.io.*;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
@@ -926,17 +929,76 @@ public class Cliente extends Application {
     }
 
     private void criarNovoCanal() {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("NOVO CANAL");
-        dialog.setHeaderText("CRIAR FREQUÊNCIA");
-        dialog.setContentText("NOME DO CANAL:");
-        dialog.showAndWait().ifPresent(nome -> {
-            String formatado = nome.trim();
-            if (!formatado.isEmpty() && out != null) {
-                out.println("CRIAR_CANAL|" + formatado);
-            }
-        });
+    // Cria um Dialog personalizado
+    Dialog<String> dialog = new Dialog<>();
+    dialog.setTitle("NOVO CANAL");
+    dialog.setHeaderText(null); // remove cabeçalho padrão
+
+    // Aplica o CSS da aplicação (reutiliza o mesmo arquivo)
+    DialogPane dialogPane = dialog.getDialogPane();
+    try {
+        String cssUrl = getClass().getResource("estilo.css").toExternalForm();
+        dialogPane.getStylesheets().add(cssUrl);
+    } catch (Exception e) {
+        File cssFile = new File("estilo.css");
+        if (cssFile.exists()) {
+            try {
+                dialogPane.getStylesheets().add(cssFile.toURI().toURL().toExternalForm());
+            } catch (Exception ex) { }
+        }
     }
+    dialogPane.getStyleClass().add("dialog-custom");
+
+    // Campo de texto
+    TextField inputField = new TextField();
+    inputField.setPromptText("EX: TECNOLOGIA");
+    inputField.getStyleClass().add("campo-mensagem");
+
+    // Labels e layout
+    VBox content = new VBox(15);
+    content.setPadding(new Insets(20));
+    content.setAlignment(Pos.CENTER);
+    Label label = new Label("CRIAR FREQUÊNCIA");
+    label.getStyleClass().add("dialog-titulo");
+    Label sublabel = new Label("Digite o nome do novo canal:");
+    sublabel.getStyleClass().add("dialog-subtitulo");
+
+    content.getChildren().addAll(label, sublabel, inputField);
+    dialogPane.setContent(content);
+
+    // Botões
+    ButtonType criarButtonType = new ButtonType("CRIAR", ButtonBar.ButtonData.OK_DONE);
+    ButtonType cancelarButtonType = new ButtonType("CANCELAR", ButtonBar.ButtonData.CANCEL_CLOSE);
+    dialogPane.getButtonTypes().addAll(criarButtonType, cancelarButtonType);
+
+    // Estiliza os botões
+    Node criarButton = dialogPane.lookupButton(criarButtonType);
+    Node cancelarButton = dialogPane.lookupButton(cancelarButtonType);
+    criarButton.getStyleClass().add("botao-transmitir");
+    cancelarButton.getStyleClass().add("botao-cancelar");
+
+    // Habilita o botão "CRIAR" apenas quando o campo não estiver vazio
+    final Button btCriar = (Button) criarButton;
+    inputField.textProperty().addListener((obs, old, novo) -> 
+        btCriar.setDisable(novo.trim().isEmpty())
+    );
+    btCriar.setDisable(true);
+
+    // Resultado
+    dialog.setResultConverter(dialogButton -> {
+        if (dialogButton == criarButtonType) {
+            return inputField.getText().trim();
+        }
+        return null;
+    });
+
+    // Mostra e processa
+    dialog.showAndWait().ifPresent(nome -> {
+        if (!nome.isEmpty() && out != null) {
+            out.println("CRIAR_CANAL|" + nome);
+        }
+    });
+}
 
     private void enviarMensagem() {
         String msg = campoMensagem.getText().trim();
