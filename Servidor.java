@@ -4,6 +4,9 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.DatagramSocket;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.LocalTime;
@@ -22,6 +25,8 @@ public class Servidor {
 
         System.out.println("--- CENTRAL DA BRIGADA (SERVIDOR) INICIADA ---");
 
+        iniciarDiscoveryBroadcast();
+
         try (ServerSocket servidorSocket = new ServerSocket(12345)) {
             while (true) {
                 new ManipuladorCliente(servidorSocket.accept()).start();
@@ -29,6 +34,25 @@ public class Servidor {
         } catch (IOException e) {
             System.out.println("Erro no servidor: " + e.getMessage());
         }
+    }
+
+    private static void iniciarDiscoveryBroadcast() {
+        new Thread(() -> {
+            try (DatagramSocket socket = new DatagramSocket()) {
+                socket.setBroadcast(true);
+                byte[] buffer = "TALKTREE_SERVER".getBytes();
+                while (true) {
+                    try {
+                        DatagramPacket packet = new DatagramPacket(buffer, buffer.length, InetAddress.getByName("255.255.255.255"), 8888);
+                        socket.send(packet);
+                        Thread.sleep(2000);
+                    } catch (Exception e) {
+                        Thread.sleep(2000);
+                    }
+                }
+            } catch (Exception e) {
+            }
+        }).start();
     }
 
     private static class ManipuladorCliente extends Thread {

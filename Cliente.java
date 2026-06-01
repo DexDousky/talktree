@@ -18,6 +18,9 @@ import javafx.scene.control.Dialog;
 import javafx.scene.control.DialogPane;
 import java.io.*;
 import java.net.Socket;
+import java.net.DatagramSocket;
+import java.net.DatagramPacket;
+import java.net.SocketTimeoutException;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
@@ -71,6 +74,8 @@ public class Cliente extends Application {
     private java.util.Map<String, StringBuilder> historicosCanais = new java.util.HashMap<>(); // histórico por canal
     private java.util.Map<String, Integer> contadoresCanais = new java.util.HashMap<>();       // contador por canal
 
+    private String ipServidor; // IP da Central
+
     // ========== GRAVAÇÃO DE VOZ ==========
     private Button btnMicrofone;                      // botão para gravar voz
     private boolean gravando = false;                 // indica se está gravando
@@ -90,6 +95,8 @@ public class Cliente extends Application {
         if (!pastaTemp.exists())
             pastaTemp.mkdirs();
 
+        descobrirIpServidor();
+
         // Exibe a tela de login e obtém o nome do usuário
         this.nomeUsuario = mostrarTelaLogin();
         if (nomeUsuario == null)
@@ -104,8 +111,12 @@ public class Cliente extends Application {
         // Cabeçalho da sidebar: título e botão refresh
         HBox headerSidebar = new HBox(10);
         headerSidebar.setAlignment(Pos.CENTER_LEFT);
+
         Label tituloSidebar = new Label("SINAIS DE RADIO");
         tituloSidebar.getStyleClass().add("titulo-barra-lateral");
+        Tooltip ipTooltip = new Tooltip(ipServidor.equals("127.0.0.1") ? "MODO LOCAL (127.0.0.1)" : "REDE: " + ipServidor);
+        Tooltip.install(tituloSidebar, ipTooltip);
+
         Button btnRefresh = new Button("⟳");
         btnRefresh.getStyleClass().add("botao-refresh");
         btnRefresh.setOnAction(e -> solicitarRefresh()); // atualiza a lista de usuários
@@ -412,6 +423,25 @@ public class Cliente extends Application {
             pastaTemp.delete();
         }
         System.out.println("Cliente desconectado: " + nomeUsuario);
+    }
+
+    private void descobrirIpServidor() {
+        ipServidor = "127.0.0.1"; // fallback padrão
+        try (DatagramSocket socket = new DatagramSocket(8888)) {
+            socket.setSoTimeout(3000); // espera no máximo 3 segundos pelo grito do servidor
+            byte[] buffer = new byte[256];
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            socket.receive(packet);
+            String recebido = new String(packet.getData(), 0, packet.getLength());
+            if ("TALKTREE_SERVER".equals(recebido)) {
+                ipServidor = packet.getAddress().getHostAddress();
+                System.out.println("Central encontrada no IP: " + ipServidor);
+            }
+        } catch (SocketTimeoutException e) {
+            System.out.println("Central nao encontrada na rede. Usando localhost.");
+        } catch (Exception e) {
+            System.out.println("Erro no discovery. Usando localhost.");
+        }
     }
 
     // ========== HISTÓRICO DO CHAT (HTML) ==========
@@ -955,7 +985,7 @@ public class Cliente extends Application {
     private void conectarServidor() {
         new Thread(() -> {
             try {
-                socket = new Socket("localhost", 12345);
+                socket = new Socket(ipServidor, 12345);
                 out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
