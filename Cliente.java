@@ -18,6 +18,11 @@ import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Timer;
+import java.util.TimerTask;
+
+// Novos imports para áudio
+import javax.sound.sampled.*;
 
 public class Cliente extends Application {
     private double xOffset = 0;
@@ -41,17 +46,25 @@ public class Cliente extends Application {
             "rindo", "sono", "sorrindo", "sou foda", "triste"
     };
 
-    private File pastaTemp; // para salvar vídeos temporariamente
+    private File pastaTemp; // para salvar vídeos e áudios temporariamente
     private ComboBox<String> comboCanais;
     private String canalAtual = "Canal 1";
     private java.util.Map<String, StringBuilder> historicosCanais = new java.util.HashMap<>();
     private java.util.Map<String, Integer> contadoresCanais = new java.util.HashMap<>();
 
+    // Novos campos para gravação de voz
+    private Button btnMicrofone;
+    private boolean gravando = false;
+    private TargetDataLine linhaAudio;
+    private ByteArrayOutputStream audioBuffer;
+    private Timer timerGravacao;
+    private static final int MAX_GRAVACAO_SEGUNDOS = 30;
+
     @Override
     public void start(Stage palcoPrincipal) {
         palcoPrincipal.initStyle(javafx.stage.StageStyle.UNDECORATED);
 
-        // Cria pasta temporária para vídeos
+        // Cria pasta temporária para vídeos e áudios
         pastaTemp = new File(System.getProperty("java.io.tmpdir"), "talktree_videos");
         if (!pastaTemp.exists())
             pastaTemp.mkdirs();
@@ -156,12 +169,19 @@ public class Cliente extends Application {
         btnAnexo.setPrefHeight(45);
         btnAnexo.setOnAction(e -> enviarAnexo());
 
+        // Botão de microfone (gravação de voz)
+        btnMicrofone = new Button("🎙️");
+        btnMicrofone.getStyleClass().add("botao-microfone");
+        btnMicrofone.setPrefWidth(50);
+        btnMicrofone.setPrefHeight(45);
+        configurarGravacaoVoz();
+
         Button btnTransmitir = new Button("TRANSMITIR");
         btnTransmitir.getStyleClass().add("botao-transmitir");
         btnTransmitir.setPrefHeight(45);
         btnTransmitir.setPrefWidth(130);
 
-        rodape.getChildren().addAll(campoMensagem, btnEmoji, btnAnexo, btnTransmitir);
+        rodape.getChildren().addAll(campoMensagem, btnEmoji, btnAnexo, btnMicrofone, btnTransmitir);
         painelChat.getChildren().addAll(header, areaChat, rodape);
 
         // --- BARRA DE TÍTULO SIMPLES ---
@@ -236,6 +256,95 @@ public class Cliente extends Application {
         campoMensagem.setOnAction(e -> enviarMensagem());
     }
 
+    // ========== GRAVAÇÃO DE VOZ ==========
+    private void configurarGravacaoVoz() {
+        btnMicrofone.setOnMousePressed(e -> iniciarGravacao());
+        btnMicrofone.setOnMouseReleased(e -> pararGravacaoEEnviar());
+    }
+
+    private void iniciarGravacao() {
+        if (gravando) return;
+        gravando = true;
+        // muda estilo do botão
+        btnMicrofone.setStyle("-fx-background-color: #E55934; -fx-text-fill: white;");
+        btnMicrofone.setText("🔴 GRAVANDO...");
+
+        // Configura áudio: 16kHz, 16-bit, mono, signed, big-endian (padrão)
+        AudioFormat format = new AudioFormat(16000, 16, 1, true, true);
+        DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+        try {
+            linhaAudio = (TargetDataLine) AudioSystem.getLine(info);
+            linhaAudio.open(format);
+            linhaAudio.start();
+            audioBuffer = new ByteArrayOutputStream();
+            // Thread para ler dados da linha
+            new Thread(() -> {
+                byte[] buffer = new byte[4096];
+                while (linhaAudio.isOpen()) {
+                    int bytesRead = linhaAudio.read(buffer, 0, buffer.length);
+                    if (bytesRead > 0) {
+                        audioBuffer.write(buffer, 0, bytesRead);
+                    }
+                }
+            }).start();
+
+            // Timer para parar automaticamente após MAX_GRAVACAO_SEGUNDOS
+            timerGravacao = new Timer(true);
+            timerGravacao.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    Platform.runLater(() -> pararGravacaoEEnviar());
+                }
+            }, MAX_GRAVACAO_SEGUNDOS * 1000L);
+        } catch (LineUnavailableException ex) {
+            ex.printStackTrace();
+            mostrarAlerta("Erro", "Microfone não disponível.");
+            gravando = false;
+            btnMicrofone.setStyle("");
+            btnMicrofone.setText("🎙️");
+        }
+    }
+
+    private void pararGravacaoEEnviar() {
+        if (!gravando) return;
+        gravando = false;
+        if (timerGravacao != null) {
+            timerGravacao.cancel();
+            timerGravacao = null;
+        }
+        if (linhaAudio != null) {
+            linhaAudio.stop();
+            linhaAudio.close();
+        }
+        byte[] audioBytes = audioBuffer != null ? audioBuffer.toByteArray() : null;
+        if (audioBytes == null || audioBytes.length == 0) {
+            mostrarAlerta("Aviso", "Nenhum áudio gravado.");
+            btnMicrofone.setStyle("");
+            btnMicrofone.setText("🎙️");
+            return;
+        }
+        // Limite de tamanho: 5 MB (já que o servidor aceita até 5MB)
+        if (audioBytes.length > 5 * 1024 * 1024) {
+            mostrarAlerta("Áudio muito longo", "Máximo 5 MB (~30 segundos nessa qualidade).");
+            btnMicrofone.setStyle("");
+            btnMicrofone.setText("🎙️");
+            return;
+        }
+        String base64Audio = Base64.getEncoder().encodeToString(audioBytes);
+        String nomeArquivo = "voz_" + System.currentTimeMillis() + ".wav";
+        String mensagem = "VOICE|" + nomeArquivo + "|" + base64Audio;
+
+        if (canalAtual.startsWith("PV:")) {
+            String dest = canalAtual.substring(3);
+            out.println(nomeUsuario + "|PV|" + dest + "|" + mensagem);
+        } else {
+            out.println(nomeUsuario + "|" + mensagem);
+        }
+
+        btnMicrofone.setStyle("");
+        btnMicrofone.setText("🎙️");
+    }
+
     // ========== FECHAMENTO ==========
     @Override
     public void stop() {
@@ -304,6 +413,18 @@ public class Cliente extends Application {
     // ========== MENSAGENS ==========
     private void adicionarMensagemAoChat(String nome, String texto) {
         String hora = formatter.format(new Date());
+
+        // VOICE
+        if (texto.startsWith("VOICE|")) {
+            String[] partes = texto.split("\\|", 3);
+            if (partes.length == 3) {
+                String nomeArquivo = partes[1];
+                String base64Audio = partes[2];
+                String htmlAudio = gerarHtmlAudio(nome, nomeArquivo, base64Audio);
+                adicionarLinhaHtml(htmlAudio);
+                return;
+            }
+        }
 
         if (texto.startsWith("FILE|")) {
             String[] partes = texto.split("\\|", 4);
@@ -405,17 +526,15 @@ public class Cliente extends Application {
             contadoresCanais.put(pvCanal, 0);
         }
         String linhaHtml;
-        if (texto.startsWith("FILE|")) {
+        if (texto.startsWith("VOICE|")) {
+            String[] partes = texto.split("\\|", 3);
+            linhaHtml = gerarHtmlAudio(remetente, partes[1], partes[2]);
+        } else if (texto.startsWith("FILE|")) {
             String[] partes = texto.split("\\|", 4);
-            String nomeArquivo = partes[1];
-            String tipo = partes[2];
-            String base64Data = partes[3];
-            linhaHtml = gerarHtmlAnexo(remetente, nomeArquivo, tipo, base64Data);
+            linhaHtml = gerarHtmlAnexo(remetente, partes[1], partes[2], partes[3]);
         } else if (texto.startsWith("STICKER|")) {
             String[] partes = texto.split("\\|", 3);
-            String nomeEmoji = partes[1];
-            String base64Data = partes[2];
-            linhaHtml = gerarHtmlSticker(remetente, nomeEmoji, base64Data);
+            linhaHtml = gerarHtmlSticker(remetente, partes[1], partes[2]);
         } else {
             String hora = formatter.format(new Date());
             String corNome = remetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
@@ -439,6 +558,48 @@ public class Cliente extends Application {
                 }
                 comboCanais.setOnAction(e -> mudarCanalSelecionado());
             });
+        }
+    }
+
+    private String gerarHtmlAudio(String nomeRemetente, String nomeArquivo, String base64Audio) {
+        String hora = formatter.format(new Date());
+        String corNome = nomeRemetente.equals(nomeUsuario) ? "#E55934" : "#9898A6";
+        // Salva o áudio em arquivo temporário para evitar data URI muito grande (opcional)
+        String audioPath = salvarAudioTemp(nomeArquivo, base64Audio);
+        String playerHtml;
+        if (audioPath != null) {
+            playerHtml = String.format(
+                    "<div><audio controls style='width:250px;' src='%s'></audio><br/><span style='font-size:11px;'>🎤 Mensagem de voz</span></div>",
+                    new File(audioPath).toURI().toString());
+        } else {
+            // fallback para data URI
+            playerHtml = String.format(
+                    "<div><audio controls style='width:250px;' src='data:audio/wav;base64,%s'></audio><br/><span style='font-size:11px;'>🎤 Mensagem de voz</span></div>",
+                    base64Audio);
+        }
+        return String.format(
+                "<div style='margin-bottom:8px; background:rgba(20,20,26,0.8); padding:10px 14px; border-radius:6px; border-left:3px solid %s;'>"
+                        +
+                        "<span style='color:#666; font-size:11px;'>[%s]</span> <b style='color:%s;'>%s</b> enviou áudio:<br/>"
+                        +
+                        "%s" +
+                        "</div>",
+                corNome, hora, corNome, nomeRemetente, playerHtml);
+    }
+
+    private String salvarAudioTemp(String nomeOriginal, String base64Data) {
+        try {
+            String nomeUnico = System.currentTimeMillis() + "_" + nomeOriginal;
+            File audioFile = new File(pastaTemp, nomeUnico);
+            byte[] dados = Base64.getDecoder().decode(base64Data);
+            try (FileOutputStream fos = new FileOutputStream(audioFile)) {
+                fos.write(dados);
+            }
+            audioFile.deleteOnExit();
+            return audioFile.getAbsolutePath();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
     }
 
@@ -562,7 +723,6 @@ public class Cliente extends Application {
         String nomeArquivo = arquivo.getName();
         String tipo = nomeArquivo.matches(".*\\.(png|jpg|jpeg|gif|bmp)$") ? "image" : "video";
 
-        // Avisa se não for MP4 (pode não funcionar)
         if (tipo.equals("video") && !nomeArquivo.toLowerCase().endsWith(".mp4")) {
             mostrarAlerta("Atenção", "Apenas vídeos MP4 (codec H.264) funcionarão corretamente.");
         }
@@ -726,8 +886,20 @@ public class Cliente extends Application {
                         });
                     } else {
                         String[] partes = linha.split("\\|", 2);
-                        if (partes.length == 2)
-                            adicionarMensagemAoChat(partes[0], partes[1]);
+                        if (partes.length == 2) {
+                            // Verifica se é mensagem privada
+                            if (partes[1].startsWith("PV|")) {
+                                String[] pvParts = partes[1].split("\\|", 4);
+                                if (pvParts.length == 4 && pvParts[0].equals("PV")) {
+                                    String remetente = partes[0];
+                                    String destinatario = pvParts[1];
+                                    String msgConteudo = pvParts[3];
+                                    adicionarMensagemPvAoChat(remetente, destinatario, msgConteudo);
+                                }
+                            } else {
+                                adicionarMensagemAoChat(partes[0], partes[1]);
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -779,8 +951,6 @@ public class Cliente extends Application {
         }
     }
 
-    // ta com base no css isso daq
-
     private String mostrarTelaLogin() {
         Stage loginStage = new Stage();
         loginStage.setTitle("CONECTAR - TALKTREE");
@@ -813,7 +983,6 @@ public class Cliente extends Application {
         Label labelErro = new Label();
         labelErro.setStyle("-fx-text-fill: #E55934; -fx-font-family: 'Outfit'; -fx-font-size: 12px;");
 
-        // Ação do botão e tecla Enter
         Runnable acaoLogin = () -> {
             String nome = campoNome.getText().trim();
             if (nome.isEmpty()) {
@@ -826,7 +995,6 @@ public class Cliente extends Application {
         btnEntrar.setOnAction(e -> acaoLogin.run());
         campoNome.setOnAction(e -> acaoLogin.run());
 
-        // Fechar a janela -> encerra programa
         loginStage.setOnCloseRequest(e -> {
             Platform.exit();
             System.exit(0);
@@ -835,12 +1003,10 @@ public class Cliente extends Application {
         painel.getChildren().addAll(titulo, subtitulo, campoNome, btnEntrar, labelErro);
         Scene cenaLogin = new Scene(painel, 500, 350);
 
-        // Aplica o CSS principal (reaproveita os estilos existentes)
         try {
             String cssUrl = getClass().getResource("estilo.css").toExternalForm();
             cenaLogin.getStylesheets().add(cssUrl);
         } catch (Exception e) {
-            // Caso não encontre o CSS, segue sem ele (funcionalidade normal)
         }
 
         loginStage.setScene(cenaLogin);

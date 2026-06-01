@@ -245,3 +245,19 @@
     -fx-background-color: #E81123;
     -fx-text-fill: #FFFFFF;
 }
+
+.botao-microfone {
+    -fx-background-color: #1A1A24;
+    -fx-text-fill: #9898A6;
+    -fx-font-size: 16px;
+    -fx-background-radius: 6px;
+    -fx-cursor: hand;
+    -fx-border-color: #2A2A38;
+    -fx-border-radius: 6px;
+}
+
+.botao-microfone:hover {
+    -fx-background-color: #242433;
+    -fx-text-fill: #FFFFFF;
+    -fx-border-color: #E55934;
+}
